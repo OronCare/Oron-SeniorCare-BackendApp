@@ -1,0 +1,43 @@
+// ==================== AUTH MODULE SCHEMA ====================
+
+enum Role {
+  owner
+  facility_admin
+  admin          // branch admin
+  staff
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String    @map("password_hash")
+  firstName     String    @map("first_name")
+  middleName    String?   @map("middle_name")
+  lastName      String    @map("last_name")
+  role          Role
+  phone         String?
+  avatar        String?
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLoginAt   DateTime? @map("last_login_at")
+  
+  // Foreign keys to other modules
+  facilityId    String?   @map("facility_id")
+  branchId      String?   @map("branch_id")
+  
+  // Created by (who created this user)
+  createdById   String?   @map("created_by_id")
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations (references to other modules)
+  facility      Facility? @relation(fields: [facilityId], references: [id])
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  createdBy     User?     @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers  User[]    @relation("UserCreator")
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}

@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum Role {
+  OWNER
+  FACILITY_ADMIN
+  BRANCH_ADMIN
+  STAFF
+}
+
+enum FacilityStatus {
+  ACTIVE
+  PENDING
+  INACTIVE
+}
+
+enum BranchStatus {
+  ACTIVE
+  PENDING
+  INACTIVE
+}
+
+enum ResidentStatus {
+  INPATIENT
+  HOSPITALIZED
+  DISCHARGED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  UNREAD
+  READ
+  RESOLVED
+}
+
+//////////////////////
+// USER
+//////////////////////
+
+model User {
+  id        String   @id @default(uuid())
+  firstName String
+  middleName String?
+  lastName  String
+  email     String   @unique
+  password  String
+  role      Role
+
+  facilityId String?
+  facility   Facility? @relation(fields: [facilityId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  createdFacilities Facility[] @relation("FacilityAdmin")
+  createdBranches   Branch[]   @relation("BranchAdmin")
+
+  tasksAssigned Task[] @relation("AssignedTasks")
+  tasksCreated  Task[] @relation("CreatedTasks")
+
+  vitalsRecorded Vital[]
+
+  auditLogs AuditLog[]
+}
+
+//////////////////////
+// FACILITY
+//////////////////////
+
+model Facility {
+  id    String @id @default(uuid())
+  name  String
+  phone String
+  email String
+  type  String
+  status FacilityStatus
+
+  contractStart DateTime
+  contractEnd   DateTime
+
+  adminId String
+  admin   User @relation("FacilityAdmin", fields: [adminId], references: [id])
+
+  branches  Branch[]
+  residents Resident[]
+  users     User[]
+  tasks Task[]   
+  alerts Alert[] 
+
+  createdAt DateTime @default(now())
+
+}
+
+//////////////////////
+// BRANCH
+//////////////////////
+
+model Branch {
+  id         String @id @default(uuid())
+  name       String
+  address    String
+  phone      String
+  type       String
+  status     BranchStatus
+
+  residentLimit    Int
+  currentResidents Int
+
+  facilityId String
+  facility   Facility @relation(fields: [facilityId], references: [id])
+
+  adminId String
+  admin   User @relation("BranchAdmin", fields: [adminId], references: [id])
+
+  residents Resident[]
+  staff     User[]
+  tasks     Task[]
+  vitals    Vital[]
+   alerts Alert[]    
+  carePlans CarePlan[] 
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// RESIDENT
+//////////////////////
+
+model Resident {
+  id        String @id @default(uuid())
+  firstName String
+  middleName String?
+  lastName  String
+  dob       DateTime
+  gender    String
+  room      String
+
+  status      ResidentStatus
+  healthState String
+
+  admissionDate DateTime
+
+  weight Float?
+  height String?
+
+  medicalHistory   String?
+  allergies        String?
+  primaryDiagnosis String?
+
+  facilityId String
+  facility   Facility @relation(fields: [facilityId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  emergencyContacts EmergencyContact[]
+  vitals            Vital[]
+  tasks             Task[]
+  carePlans         CarePlan[]
+  notes             Note[]
+   alerts Alert[]
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// EMERGENCY CONTACT
+//////////////////////
+
+model EmergencyContact {
+  id        String @id @default(uuid())
+  firstName String
+  middleName String?
+  lastName  String
+  phone     String
+  relation  String
+  email     String?
+
+  residentId String
+  resident   Resident @relation(fields: [residentId], references: [id])
+}
+
+//////////////////////
+// VITALS
+//////////////////////
+
+model Vital {
+  id        String @id @default(uuid())
+  date      DateTime
+
+  systolicBP       Int?
+  diastolicBP      Int?
+  heartRate        Int?
+  temperature      Float?
+  oxygenSaturation Int?
+  bloodSugar       Int?
+  weight           Float?
+  respiratoryRate  Int?
+
+  notes String?
+
+  residentId String
+  resident   Resident @relation(fields: [residentId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  recordedById String
+  recordedBy   User @relation(fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// TASK
+//////////////////////
+
+model Task {
+  id          String @id @default(uuid())
+  title       String
+  description String?
+  category    String
+
+  status TaskStatus
+  dueDate DateTime
+
+  residentId String
+  resident   Resident @relation(fields: [residentId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  facilityId String
+  facility   Facility @relation(fields: [facilityId], references: [id])
+
+  assignedToId String
+  assignedTo   User @relation("AssignedTasks", fields: [assignedToId], references: [id])
+
+  createdById String
+  createdBy   User @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// ALERT
+//////////////////////
+
+model Alert {
+  id       String @id @default(uuid())
+  title    String
+  message  String
+  severity AlertSeverity
+  status   AlertStatus
+
+  date DateTime
+
+  facilityId String?
+  branchId   String?
+  residentId String?
+
+  facility Facility? @relation(fields: [facilityId], references: [id])
+  branch   Branch?   @relation(fields: [branchId], references: [id])
+  resident Resident? @relation(fields: [residentId], references: [id])
+}
+
+//////////////////////
+// RULE
+//////////////////////
+
+model Rule {
+  id          String @id @default(uuid())
+  name        String
+  vitalType   String
+  category    String
+  thresholds  Json
+  isActive    Boolean
+  description String
+}
+
+//////////////////////
+// CARE PLAN
+//////////////////////
+
+model CarePlan {
+  id            String @id @default(uuid())
+  generatedDate DateTime
+  reviewDate    DateTime
+
+  medications Json
+  actions     Json
+
+  residentId String
+  resident   Resident @relation(fields: [residentId], references: [id])
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
+}
+
+//////////////////////
+// AUDIT LOG
+//////////////////////
+
+model AuditLog {
+  id        String @id @default(uuid())
+  timestamp DateTime
+  action    String
+  details   String
+  ipAddress String
+
+  userId String
+  user   User @relation(fields: [userId], references: [id])
+
+  facilityId String?
+  branchId   String?
+}
+
+//////////////////////
+// NOTES
+//////////////////////
+
+model Note {
+  id        String @id @default(uuid())
+  content   String
+  type      String
+  timestamp DateTime
+
+  residentId String
+  resident   Resident @relation(fields: [residentId], references: [id])
+}

@@ -1,0 +1,53 @@
+import {
+  IsDateString,
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+} from 'class-validator';
+
+export class CreateFacilityDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+
+  @IsString()
+  @IsNotEmpty()
+  status: string;
+
+  @IsDateString()
+  @IsNotEmpty()
+  contractStart: string;
+
+  @IsDateString()
+  @IsNotEmpty()
+  contractEnd: string;
+
+  @IsString()
+  @IsNotEmpty()
+  adminFirstName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  adminLastName: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  adminEmail: string;
+
+  @IsString()
+  @MinLength(6)
+  adminPassword: string;
+}
