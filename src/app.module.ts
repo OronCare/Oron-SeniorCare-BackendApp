@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { FacilityModule } from './facility/facility.module';
 import { BranchModule } from './branch/branch.module';
+import { ResidentsModule } from './residents/residents.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BranchModule } from './branch/branch.module';
     UsersModule,
     FacilityModule,
     BranchModule,
+    ResidentsModule,
   ],
   controllers: [AppController],
   providers: [

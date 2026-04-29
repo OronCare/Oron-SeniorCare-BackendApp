@@ -175,9 +175,9 @@ export class UsersService {
 
     switch (creator.role) {
       case Role.OWNER:
-        // Owner can create facility admins
-        if (targetRole !== Role.FACILITY_ADMIN) {
-          throw new ForbiddenException('Owner can only create facility admins');
+        // Owner can create facility admins and branch admins
+        if (targetRole !== Role.FACILITY_ADMIN && targetRole !== Role.BRANCH_ADMIN) {
+          throw new ForbiddenException('Owner can only create facility admins and branch admins');
         }
         break;
       case Role.FACILITY_ADMIN:

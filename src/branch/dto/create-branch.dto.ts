@@ -1,6 +1,9 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsEmail, IsInt, IsNotEmpty, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateBranchDto {
+  @IsUUID()
+  facilityId: string;
+
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -25,11 +28,19 @@ export class CreateBranchDto {
   @Min(1)
   residentLimit: number;
 
-  @IsOptional()
-  @IsUUID()
-  branchAdminId?: string;
-
-  @IsOptional()
   @IsString()
-  branchAdminName?: string;
+  @IsNotEmpty()
+  branchAdminFirstName: string;
+
+  @IsString()
+  @IsNotEmpty()
+  branchAdminLastName: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  branchAdminEmail: string;
+
+  @IsString()
+  @IsNotEmpty()
+  branchAdminPassword: string;
 }

@@ -21,7 +21,7 @@ export class BranchController {
   constructor(private readonly branchService: BranchService) {}
 
   @Post()
-  @Roles(Role.FACILITY_ADMIN)
+  @Roles(Role.OWNER)
   async create(
     @Body() createBranchDto: CreateBranchDto,
     @CurrentUser() currentUser: User,
