@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ResidentsService } from './residents.service';
 import { CreateResidentDto } from './dto/create-resident.dto';
@@ -18,6 +19,7 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.model';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 
 @ApiTags('Residents')
 @ApiBearerAuth()
@@ -25,6 +27,17 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ResidentsController {
   constructor(private readonly residentsService: ResidentsService) {}
+
+  private getClientIp(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      return forwarded.split(',')[0].trim();
+    }
+    if (Array.isArray(forwarded) && forwarded[0]) {
+      return forwarded[0];
+    }
+    return req.ip ?? '';
+  }
 
   @Post()
   @Roles(Role.OWNER, Role.FACILITY_ADMIN, Role.BRANCH_ADMIN)
@@ -34,8 +47,13 @@ export class ResidentsController {
   async create(
     @Body() createResidentDto: CreateResidentDto,
     @CurrentUser() currentUser: User,
+    @Req() req: Request,
   ) {
-    return this.residentsService.create(createResidentDto, currentUser);
+    return this.residentsService.create(
+      createResidentDto,
+      currentUser,
+      this.getClientIp(req),
+    );
   }
 
   @Get()

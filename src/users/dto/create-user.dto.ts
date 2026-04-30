@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsUUID, IsEnum } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsUUID, IsEnum, IsArray, IsISO8601 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '../../common/enums/role.enum';
 
@@ -38,6 +38,27 @@ export class CreateUserDto {
   @IsOptional()
   @IsUUID()
   branchId?: string;
+
+  @ApiPropertyOptional({ example: 'Caregiver', description: 'Staff display role' })
+  @IsOptional()
+  @IsString()
+  staffRole?: string;
+
+  @ApiPropertyOptional({ example: 'Active', description: 'Staff status' })
+  @IsOptional()
+  @IsString()
+  staffStatus?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-08T10:30:00Z', description: 'Staff last active date-time' })
+  @IsOptional()
+  @IsISO8601()
+  lastActive?: string;
+
+  @ApiPropertyOptional({ example: ['View Residents', 'Edit Vitals'], description: 'Staff permissions list' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  permissions?: string[];
 }
 
 export class UpdateUserDto {
@@ -81,4 +102,25 @@ export class UpdateUserDto {
   @IsString()
   @MinLength(6)
   password?: string;
+
+  @ApiPropertyOptional({ example: 'Caregiver', description: 'Staff display role' })
+  @IsOptional()
+  @IsString()
+  staffRole?: string;
+
+  @ApiPropertyOptional({ example: 'Active', description: 'Staff status' })
+  @IsOptional()
+  @IsString()
+  staffStatus?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-08T10:30:00Z', description: 'Staff last active date-time' })
+  @IsOptional()
+  @IsISO8601()
+  lastActive?: string;
+
+  @ApiPropertyOptional({ example: ['View Residents', 'Edit Vitals'], description: 'Staff permissions list' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  permissions?: string[];
 }

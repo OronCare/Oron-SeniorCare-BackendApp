@@ -8,10 +8,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategies';
 import { UsersModule } from '../users/users.module';
 import { RolesGuard } from './guards/roles.guard';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
     UsersModule,
+    AuditLogsModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'SECRET_KEY',

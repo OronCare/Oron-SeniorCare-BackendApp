@@ -1,45 +1,50 @@
 import {
+  AllowNull,
   Column,
+  CreatedAt,
   DataType,
   Model,
   PrimaryKey,
   Table,
-  CreatedAt,
-  AllowNull,
   Unique,
 } from 'sequelize-typescript';
-import { Role } from '../common/enums/role.enum';
 
-export interface UserCreationAttributes {
+export interface StaffCreationAttributes {
   id?: string;
+  branchId: string;
+  facilityId: string;
   firstName: string;
   middleName?: string | null;
   lastName: string;
   email: string;
-  password: string;
-  role: Role;
-  facilityId?: string | null;
-  branchId?: string | null;
-  staffRole?: string | null;
-  staffStatus?: string | null;
+  role: string;
+  status: string;
   lastActive?: Date | null;
-  permissions?: string[] | null;
+  permissions: string[];
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 @Table({
-  tableName: 'User',
+  tableName: 'Staff',
   timestamps: true,
   underscored: false,
 })
-export class User extends Model<User, UserCreationAttributes> {
+export class Staff extends Model<Staff, StaffCreationAttributes> {
   @PrimaryKey
   @Column({
     type: DataType.UUID,
     defaultValue: DataType.UUIDV4,
   })
   declare id: string;
+
+  @AllowNull(false)
+  @Column(DataType.UUID)
+  declare branchId: string;
+
+  @AllowNull(false)
+  @Column(DataType.UUID)
+  declare facilityId: string;
 
   @AllowNull(false)
   @Column(DataType.STRING)
@@ -60,38 +65,19 @@ export class User extends Model<User, UserCreationAttributes> {
 
   @AllowNull(false)
   @Column(DataType.STRING)
-  declare password: string;
+  declare role: string;
 
   @AllowNull(false)
-  @Column({
-    type: DataType.ENUM('OWNER', 'FACILITY_ADMIN', 'BRANCH_ADMIN', 'STAFF'),
-    defaultValue: Role.STAFF,
-  })
-  declare role: Role;
-
-  @AllowNull(true)
-  @Column(DataType.UUID)
-  declare facilityId?: string | null;
-
-  @AllowNull(true)
-  @Column(DataType.UUID)
-  declare branchId?: string | null;
-
-  @AllowNull(true)
   @Column(DataType.STRING)
-  declare staffRole?: string | null;
-
-  @AllowNull(true)
-  @Column(DataType.STRING)
-  declare staffStatus?: string | null;
+  declare status: string;
 
   @AllowNull(true)
   @Column(DataType.DATE)
   declare lastActive?: Date | null;
 
-  @AllowNull(true)
+  @AllowNull(false)
   @Column(DataType.JSON)
-  declare permissions?: string[] | null;
+  declare permissions: string[];
 
   @CreatedAt
   @Column

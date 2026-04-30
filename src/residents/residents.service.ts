@@ -11,6 +11,7 @@ import { UpdateResidentDto } from './dto/update-resident.dto';
 import { encryptText, decryptText } from '../common/utils/encryption.util';
 import { ResidentData } from './interfaces/resident-data.interface';
 import { Role } from '../common/enums/role.enum';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class ResidentsService {
@@ -21,11 +22,19 @@ export class ResidentsService {
     private readonly branchModel: typeof Branch,
     @InjectModel(Facility)
     private readonly facilityModel: typeof Facility,
+<<<<<<< HEAD
     @InjectConnection()
     private readonly sequelize: Sequelize,
+=======
+    private readonly auditLogsService: AuditLogsService,
+>>>>>>> a2a65713f228dc4103712df5d193529700d6cce2
   ) {}
 
-  async create(createResidentDto: CreateResidentDto, currentUser: User): Promise<any> {
+  async create(
+    createResidentDto: CreateResidentDto,
+    currentUser: User,
+    ipAddress?: string,
+  ): Promise<any> {
     this.validateCreatePermissions(currentUser);
 
     const branch = await this.branchModel.findByPk(createResidentDto.branchId);
@@ -45,6 +54,34 @@ export class ResidentsService {
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
     const encryptedData = encryptText(JSON.stringify(createResidentDto));
+<<<<<<< HEAD
+=======
+    const resident = await this.residentModel.create({
+      branchId: createResidentDto.branchId,
+      facilityId: createResidentDto.facilityId,
+      encryptedData,
+    });
+    const actorName = [currentUser.firstName, currentUser.middleName, currentUser.lastName]
+      .filter(Boolean)
+      .join(' ');
+    const residentName = [
+      createResidentDto.firstName,
+      createResidentDto.middleName,
+      createResidentDto.lastName,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    if (currentUser.role !== Role.OWNER) {
+      await this.auditLogsService.create({
+        facilityId: resident.facilityId,
+        branchId: resident.branchId,
+        user: actorName,
+        action: 'Resident Added',
+        details: `Added new resident ${residentName}`,
+        ipAddress: ipAddress ?? null,
+      });
+    }
+>>>>>>> a2a65713f228dc4103712df5d193529700d6cce2
 
     return this.sequelize.transaction(async (transaction: Transaction) => {
       const resident = await this.residentModel.create(
