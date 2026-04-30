@@ -12,11 +12,13 @@ import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
 import { Facility } from '../facility/facility.model';
 import { UsersService } from '../users/users.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class BranchService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly auditLogsService: AuditLogsService,
     @InjectModel(Branch)
     private readonly branchModel: typeof Branch,
     @InjectModel(Facility)
@@ -25,7 +27,11 @@ export class BranchService {
     private readonly sequelize: Sequelize,
   ) {}
 
-  async create(createBranchDto: CreateBranchDto, currentUser: User): Promise<Branch> {
+  async create(
+    createBranchDto: CreateBranchDto,
+    currentUser: User,
+    ipAddress?: string,
+  ): Promise<Branch> {
     if (currentUser.role !== Role.OWNER) {
       throw new ForbiddenException('Only owners can create branches');
     }
@@ -35,7 +41,7 @@ export class BranchService {
       throw new BadRequestException('Facility not found');
     }
 
-    return this.sequelize.transaction(async (transaction: Transaction) => {
+    const branch = await this.sequelize.transaction(async (transaction: Transaction) => {
       const {
         branchAdminFirstName,
         branchAdminLastName,
@@ -76,6 +82,22 @@ export class BranchService {
 
       return branch;
     });
+
+    const actorName = [currentUser.firstName, currentUser.middleName, currentUser.lastName]
+      .filter(Boolean)
+      .join(' ');
+    if (currentUser.role !== Role.OWNER) {
+      await this.auditLogsService.create({
+        facilityId: branch.facilityId,
+        branchId: branch.id,
+        user: actorName,
+        action: 'Branch Added',
+        details: `Added new branch ${branch.name}`,
+        ipAddress: ipAddress ?? null,
+      });
+    }
+
+    return branch;
   }
 
   async findAll(currentUser: User): Promise<Branch[]> {

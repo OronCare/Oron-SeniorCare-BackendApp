@@ -4,15 +4,18 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { LoginResponse } from './interfaces/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { Role } from '../common/enums/role.enum';
 
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwt: JwtService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string, ipAddress?: string): Promise<LoginResponse> {
     const user = await this.usersService.findByEmail(email);
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -28,6 +31,19 @@ export class AuthService {
     };
 
     const access_token = this.jwt.sign(payload);
+    const userFullName = [user.firstName, user.middleName, user.lastName]
+      .filter(Boolean)
+      .join(' ');
+    if (user.role !== Role.OWNER) {
+      await this.auditLogsService.create({
+        facilityId: user.facilityId ?? null,
+        branchId: user.branchId ?? null,
+        user: userFullName,
+        action: 'Login',
+        details: `Successful login by ${user.role}`,
+        ipAddress: ipAddress ?? null,
+      });
+    }
 
     return {
       access_token,

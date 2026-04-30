@@ -11,6 +11,9 @@ import { UsersModule } from './users/users.module';
 import { FacilityModule } from './facility/facility.module';
 import { BranchModule } from './branch/branch.module';
 import { ResidentsModule } from './residents/residents.module';
+import { StaffModule } from './staff/staff.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { RulesModule } from './rules/rules.module';
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { ResidentsModule } from './residents/residents.module';
     FacilityModule,
     BranchModule,
     ResidentsModule,
+    StaffModule,
+    AuditLogsModule,
+    RulesModule,
   ],
   controllers: [AppController],
   providers: [

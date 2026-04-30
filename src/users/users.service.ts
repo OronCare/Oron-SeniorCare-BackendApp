@@ -46,10 +46,15 @@ export class UsersService {
     // Hash password
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
+    const createPayload = {
+      ...userData,
+      lastActive: userData.lastActive ? new Date(userData.lastActive) : undefined,
+      password: hashedPassword,
+    };
+
     const user = await this.userModel.create(
       {
-        ...userData,
-        password: hashedPassword,
+        ...createPayload,
       },
       { transaction },
     );
@@ -73,12 +78,17 @@ export class UsersService {
       await this.validateUserUpdatePermissions(userData.role, updater, user);
     }
 
+    const updatePayload: Partial<User> = {
+      ...userData,
+      lastActive: userData.lastActive ? new Date(userData.lastActive) : undefined,
+    };
+
     // Hash password if being updated
-    if (userData.password) {
-      userData.password = await bcrypt.hash(userData.password, 10);
+    if (updatePayload.password) {
+      updatePayload.password = await bcrypt.hash(updatePayload.password, 10);
     }
 
-    const updatedUser = await user.update(userData);
+    const updatedUser = await user.update(updatePayload);
 
     // Remove password from response
     const { password, ...userWithoutPassword } = updatedUser.toJSON();

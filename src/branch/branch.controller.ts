@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { BranchService } from './branch.service';
@@ -14,19 +15,36 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.model';
+import type { Request } from 'express';
 
 @Controller('branches')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BranchController {
   constructor(private readonly branchService: BranchService) {}
 
+  private getClientIp(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      return forwarded.split(',')[0].trim();
+    }
+    if (Array.isArray(forwarded) && forwarded[0]) {
+      return forwarded[0];
+    }
+    return req.ip ?? '';
+  }
+
   @Post()
   @Roles(Role.OWNER)
   async create(
     @Body() createBranchDto: CreateBranchDto,
     @CurrentUser() currentUser: User,
+    @Req() req: Request,
   ) {
-    return this.branchService.create(createBranchDto, currentUser);
+    return this.branchService.create(
+      createBranchDto,
+      currentUser,
+      this.getClientIp(req),
+    );
   }
 
   @Get()

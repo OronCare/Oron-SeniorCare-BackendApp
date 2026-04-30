@@ -5,9 +5,10 @@ import { BranchService } from './branch.service';
 import { Branch } from './branch.model';
 import { Facility } from '../facility/facility.model';
 import { UsersModule } from '../users/users.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Branch, Facility]), UsersModule],
+  imports: [SequelizeModule.forFeature([Branch, Facility]), UsersModule, AuditLogsModule],
   controllers: [BranchController],
   providers: [BranchService],
 })
