@@ -1,5 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import { Sequelize } from 'sequelize-typescript';
+import { Transaction } from 'sequelize';
 import { Resident } from './resident.model';
 import { Branch } from '../branch/branch.model';
 import { Facility } from '../facility/facility.model';
@@ -19,6 +21,8 @@ export class ResidentsService {
     private readonly branchModel: typeof Branch,
     @InjectModel(Facility)
     private readonly facilityModel: typeof Facility,
+    @InjectConnection()
+    private readonly sequelize: Sequelize,
   ) {}
 
   async create(createResidentDto: CreateResidentDto, currentUser: User): Promise<any> {
@@ -41,13 +45,27 @@ export class ResidentsService {
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
     const encryptedData = encryptText(JSON.stringify(createResidentDto));
-    const resident = await this.residentModel.create({
-      branchId: createResidentDto.branchId,
-      facilityId: createResidentDto.facilityId,
-      encryptedData,
-    });
 
-    return this.buildResidentResponse(resident);
+    return this.sequelize.transaction(async (transaction: Transaction) => {
+      const resident = await this.residentModel.create(
+        {
+          branchId: createResidentDto.branchId,
+          facilityId: createResidentDto.facilityId,
+          encryptedData,
+        },
+        { transaction },
+      );
+
+      branch.currentResidents += 1;
+      facility.totalResidents += 1;
+
+      await Promise.all([
+        branch.save({ transaction }),
+        facility.save({ transaction }),
+      ]);
+
+      return this.buildResidentResponse(resident);
+    });
   }
 
   async findAll(currentUser: User): Promise<any[]> {
@@ -76,8 +94,11 @@ export class ResidentsService {
       throw new ForbiddenException('Insufficient permissions to update resident');
     }
 
-    let branch = await this.branchModel.findByPk(resident.branchId);
-    let facility = await this.facilityModel.findByPk(resident.facilityId);
+    const oldBranch = await this.branchModel.findByPk(resident.branchId);
+    const oldFacility = await this.facilityModel.findByPk(resident.facilityId);
+
+    let branch = oldBranch;
+    let facility = oldFacility;
 
     if (updateResidentDto.branchId) {
       branch = await this.branchModel.findByPk(updateResidentDto.branchId);
@@ -103,12 +124,31 @@ export class ResidentsService {
       ...updateResidentDto,
     } as ResidentData;
 
-    resident.branchId = updateResidentDto.branchId ?? resident.branchId;
-    resident.facilityId = updateResidentDto.facilityId ?? resident.facilityId;
-    resident.encryptedData = encryptText(JSON.stringify(mergedData));
+    return this.sequelize.transaction(async (transaction: Transaction) => {
+      if (branch && oldBranch && branch.id !== oldBranch.id) {
+        oldBranch.currentResidents = Math.max(0, oldBranch.currentResidents - 1);
+        branch.currentResidents += 1;
+      }
 
-    await resident.save();
-    return this.buildResidentResponse(resident);
+      if (facility && oldFacility && facility.id !== oldFacility.id) {
+        oldFacility.totalResidents = Math.max(0, oldFacility.totalResidents - 1);
+        facility.totalResidents += 1;
+      }
+
+      resident.branchId = updateResidentDto.branchId ?? resident.branchId;
+      resident.facilityId = updateResidentDto.facilityId ?? resident.facilityId;
+      resident.encryptedData = encryptText(JSON.stringify(mergedData));
+
+      await Promise.all([
+        oldBranch?.save({ transaction }),
+        branch?.save({ transaction }),
+        oldFacility?.save({ transaction }),
+        facility?.save({ transaction }),
+        resident.save({ transaction }),
+      ]);
+
+      return this.buildResidentResponse(resident);
+    });
   }
 
   async delete(id: string, currentUser: User): Promise<boolean> {
@@ -121,8 +161,26 @@ export class ResidentsService {
       throw new ForbiddenException('Insufficient permissions to delete resident');
     }
 
-    const result = await this.residentModel.destroy({ where: { id } });
-    return result > 0;
+    const branch = await this.branchModel.findByPk(resident.branchId);
+    const facility = await this.facilityModel.findByPk(resident.facilityId);
+
+    return this.sequelize.transaction(async (transaction: Transaction) => {
+      const result = await this.residentModel.destroy({ where: { id }, transaction });
+
+      if (result > 0) {
+        if (branch) {
+          branch.currentResidents = Math.max(0, branch.currentResidents - 1);
+          await branch.save({ transaction });
+        }
+
+        if (facility) {
+          facility.totalResidents = Math.max(0, facility.totalResidents - 1);
+          await facility.save({ transaction });
+        }
+      }
+
+      return result > 0;
+    });
   }
 
   private buildResidentResponse(resident: Resident): any {

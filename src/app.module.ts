@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { FacilityModule } from './facility/facility.module';
 import { BranchModule } from './branch/branch.module';
 import { ResidentsModule } from './residents/residents.module';
+import { TaskModule } from './task/task.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ResidentsModule } from './residents/residents.module';
     FacilityModule,
     BranchModule,
     ResidentsModule,
+    TaskModule,
   ],
   controllers: [AppController],
   providers: [
