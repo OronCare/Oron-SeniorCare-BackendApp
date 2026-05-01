@@ -51,11 +51,27 @@ export class ResidentsService {
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
     const encryptedData = encryptText(JSON.stringify(createResidentDto));
-    const resident = await this.residentModel.create({
-      branchId: createResidentDto.branchId,
-      facilityId: createResidentDto.facilityId,
-      encryptedData,
+    const resident = await this.sequelize.transaction(async (transaction: Transaction) => {
+      const resident = await this.residentModel.create(
+        {
+          branchId: createResidentDto.branchId,
+          facilityId: createResidentDto.facilityId,
+          encryptedData,
+        },
+        { transaction },
+      );
+
+      branch.currentResidents += 1;
+      facility.totalResidents += 1;
+
+      await Promise.all([
+        branch.save({ transaction }),
+        facility.save({ transaction }),
+      ]);
+
+      return resident;
     });
+
     const actorName = [currentUser.firstName, currentUser.middleName, currentUser.lastName]
       .filter(Boolean)
       .join(' ');
@@ -77,26 +93,7 @@ export class ResidentsService {
       });
     }
 
-    return this.sequelize.transaction(async (transaction: Transaction) => {
-      const resident = await this.residentModel.create(
-        {
-          branchId: createResidentDto.branchId,
-          facilityId: createResidentDto.facilityId,
-          encryptedData,
-        },
-        { transaction },
-      );
-
-      branch.currentResidents += 1;
-      facility.totalResidents += 1;
-
-      await Promise.all([
-        branch.save({ transaction }),
-        facility.save({ transaction }),
-      ]);
-
-      return this.buildResidentResponse(resident);
-    });
+    return this.buildResidentResponse(resident);
   }
 
   async findAll(currentUser: User): Promise<any[]> {

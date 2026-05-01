@@ -4,10 +4,12 @@ import {
   Get,
   Param,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { FacilityService } from './facility.service';
 import { CreateFacilityDto } from './dto/create-facility.dto';
+import { UpdateFacilityDto } from './dto/update-facility.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -36,5 +38,15 @@ export class FacilityController {
   @Roles(Role.OWNER)
   async findOne(@Param('id') id: string) {
     return this.facilityService.findOne(id);
+  }
+
+  @Put(':id')
+  @Roles(Role.OWNER)
+  async update(
+    @Param('id') id: string,
+    @Body() updateFacilityDto: UpdateFacilityDto,
+    @CurrentUser() owner: User,
+  ) {
+    return this.facilityService.update(id, updateFacilityDto, owner);
   }
 }
