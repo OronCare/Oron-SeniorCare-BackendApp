@@ -83,7 +83,7 @@ export class VitalsService {
       residentId: resident.id,
       branchId: resident.branchId,
       facilityId: resident.facilityId,
-      recordedById: currentUser.id || currentUser.sub,
+      recordedById: currentUser.id,
       date: new Date(createVitalDto.date),
       thresholdEvaluation,
     });
