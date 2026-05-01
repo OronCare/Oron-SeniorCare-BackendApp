@@ -13,12 +13,14 @@ import { Role } from '../common/enums/role.enum';
 import { Facility } from '../facility/facility.model';
 import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class BranchService {
   constructor(
     private readonly usersService: UsersService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly emailService: EmailService,
     @InjectModel(Branch)
     private readonly branchModel: typeof Branch,
     @InjectModel(Facility)
@@ -76,6 +78,12 @@ export class BranchService {
       branch.branchAdminId = branchAdmin.id;
       branch.branchAdminName = `${branchAdmin.firstName} ${branchAdmin.lastName}`;
       await branch.save({ transaction });
+      await this.emailService.sendFacilityAdminCredentials(
+        branchAdmin.email,
+        branchAdmin.firstName,
+        branchAdminPassword,
+        branch.name,
+      );
 
       facility.totalBranches += 1;
       await facility.save({ transaction });

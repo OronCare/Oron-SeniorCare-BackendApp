@@ -14,8 +14,27 @@ export class EmailService {
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASSWORD;
+    const configuredFrom = process.env.SMTP_FROM;
+    const smtpHost = (host || '').toLowerCase();
+    const isGmailSmtp = smtpHost.includes('gmail');
+    const configuredFromDomain = configuredFrom?.split('@')[1]?.toLowerCase();
+    const smtpUserDomain = user?.split('@')[1]?.toLowerCase();
 
-    this.fromAddress = process.env.SMTP_FROM || `no-reply@${process.env.APP_DOMAIN || 'oron.com'}`;
+    // With Gmail SMTP, using a different "from" domain can pass sendMail
+    // but silently fail delivery (DMARC/SPF alignment issues).
+    const shouldForceSmtpUserAsFrom =
+      Boolean(isGmailSmtp && user && configuredFrom && configuredFromDomain !== smtpUserDomain);
+
+    if (shouldForceSmtpUserAsFrom) {
+      this.logger.warn(
+        `SMTP_FROM (${configuredFrom}) does not match SMTP_USER domain for Gmail SMTP. Using SMTP_USER as from address.`,
+      );
+    }
+
+    this.fromAddress =
+      (shouldForceSmtpUserAsFrom ? user : configuredFrom) ||
+      user ||
+      `no-reply@${process.env.APP_DOMAIN || 'oron.com'}`;
     this.enabled = Boolean(host && user && pass);
 
     this.logger.log(`SMTP Configuration - Host: ${host}, Port: ${port}, User: ${user ? 'set' : 'not set'}, From: ${this.fromAddress}`);
@@ -64,7 +83,9 @@ export class EmailService {
         text,
         html,
       });
-      this.logger.log(`Email sent successfully to ${email}. Message ID: ${info.messageId}`);
+      this.logger.log(
+        `Email sent. Message ID: ${info.messageId}, accepted: ${(info.accepted || []).join(',')}, rejected: ${(info.rejected || []).join(',')}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to send facility admin email to ${email}`, error as any);
       throw new InternalServerErrorException('Failed to send facility admin credentials email');

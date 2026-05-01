@@ -22,12 +22,9 @@ export class ResidentsService {
     private readonly branchModel: typeof Branch,
     @InjectModel(Facility)
     private readonly facilityModel: typeof Facility,
-<<<<<<< HEAD
     @InjectConnection()
     private readonly sequelize: Sequelize,
-=======
     private readonly auditLogsService: AuditLogsService,
->>>>>>> a2a65713f228dc4103712df5d193529700d6cce2
   ) {}
 
   async create(
@@ -54,8 +51,6 @@ export class ResidentsService {
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
     const encryptedData = encryptText(JSON.stringify(createResidentDto));
-<<<<<<< HEAD
-=======
     const resident = await this.residentModel.create({
       branchId: createResidentDto.branchId,
       facilityId: createResidentDto.facilityId,
@@ -81,7 +76,6 @@ export class ResidentsService {
         ipAddress: ipAddress ?? null,
       });
     }
->>>>>>> a2a65713f228dc4103712df5d193529700d6cce2
 
     return this.sequelize.transaction(async (transaction: Transaction) => {
       const resident = await this.residentModel.create(

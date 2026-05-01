@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -10,7 +10,7 @@ import { Facility } from '../facility/facility.model';
 import { Role } from '../common/enums/role.enum';
 
 @Injectable()
-export class TaskService {
+export class TaskService implements OnModuleInit {
   constructor(
     @InjectModel(Task)
     private taskModel: typeof Task,
@@ -24,7 +24,21 @@ export class TaskService {
     private facilityModel: typeof Facility,
   ) {}
 
+  async onModuleInit(): Promise<void> {
+    // Ensure Task table exists for environments where migrations were not applied yet.
+    await this.taskModel.sync();
+  }
+
+  private getRequestUserId(user: User & { sub?: string; userId?: string }): string {
+    return user.id ?? user.userId ?? user.sub ?? '';
+  }
+
   async create(createTaskDto: CreateTaskDto, user: User) {
+    const creatorId = this.getRequestUserId(user as User & { sub?: string; userId?: string });
+    if (!creatorId) {
+      throw new ForbiddenException('Authenticated user id is missing in token payload');
+    }
+
     if (user.role !== Role.BRANCH_ADMIN) {
       throw new ForbiddenException('Only branch admins can create tasks');
     }
@@ -59,7 +73,7 @@ export class TaskService {
 
     return this.taskModel.create({
       ...createTaskDto,
-      createdById: user.id,
+      createdById: creatorId,
       dueDate: new Date(createTaskDto.dueDate),
     } as any);
 
@@ -69,7 +83,7 @@ export class TaskService {
     const whereClause: any = {};
 
     if (user.role === Role.STAFF) {
-      whereClause.assignedToId = user.id;
+      whereClause.branchId = user.branchId;
     } else if (user.role === Role.BRANCH_ADMIN) {
       whereClause.branchId = user.branchId;
     } else if (user.role === Role.FACILITY_ADMIN) {
@@ -85,8 +99,8 @@ export class TaskService {
       throw new NotFoundException('Task not found');
     }
 
-    if (user.role === Role.STAFF && task.assignedToId !== user.id) {
-      throw new ForbiddenException('You can only view your own tasks');
+    if (user.role === Role.STAFF && task.branchId !== user.branchId) {
+      throw new ForbiddenException('You can only view tasks in your branch');
     }
     if (user.role === Role.BRANCH_ADMIN && task.branchId !== user.branchId) {
       throw new ForbiddenException('You can only view tasks in your branch');

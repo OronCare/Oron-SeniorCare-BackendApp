@@ -6,6 +6,8 @@ import { Branch } from '../branch/branch.model';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { EmailService } from '../common/services/email.service';
+
 
 @Injectable()
 export class StaffService {
@@ -15,6 +17,8 @@ export class StaffService {
     @InjectModel(Branch)
     private readonly branchModel: typeof Branch,
     private readonly auditLogsService: AuditLogsService,
+    private readonly emailService: EmailService,
+
   ) {}
 
   private mapStaffUser(user: User) {
@@ -114,6 +118,14 @@ export class StaffService {
       lastActive: createStaffDto.lastActive ? new Date(createStaffDto.lastActive) : null,
       permissions: createStaffDto.permissions,
     });
+
+    await this.emailService.sendFacilityAdminCredentials(
+      createdStaff.email,
+      createdStaff.firstName,
+      tempPassword,
+      createdStaff.lastName,
+    );
+
     const actorName = [currentUser.firstName, currentUser.middleName, currentUser.lastName]
       .filter(Boolean)
       .join(' ');
