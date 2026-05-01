@@ -8,6 +8,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { Transaction } from 'sequelize';
 import { Facility } from './facility.model';
 import { CreateFacilityDto } from './dto/create-facility.dto';
+import { UpdateFacilityDto } from './dto/update-facility.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
@@ -96,5 +97,77 @@ export class FacilityService {
 
   async findOne(id: string): Promise<Facility | null> {
     return this.facilityModel.findByPk(id);
+  }
+
+  async update(id: string, updateFacilityDto: UpdateFacilityDto, owner: User): Promise<Facility> {
+    if (owner.role !== Role.OWNER) {
+      throw new ForbiddenException('Only owners can update facilities');
+    }
+
+    const facility = await this.facilityModel.findByPk(id);
+    if (!facility) {
+      throw new BadRequestException('Facility not found');
+    }
+
+    if (updateFacilityDto.email && updateFacilityDto.email !== facility.email) {
+      const existingFacility = await this.facilityModel.findOne({
+        where: { email: updateFacilityDto.email },
+      });
+      if (existingFacility && existingFacility.id !== facility.id) {
+        throw new BadRequestException('Facility with this email already exists');
+      }
+    }
+
+    if (facility.facilityAdminId) {
+      const facilityAdmin = await this.usersService.findById(facility.facilityAdminId);
+
+      if (facilityAdmin) {
+        if (updateFacilityDto.adminEmail && updateFacilityDto.adminEmail !== facilityAdmin.email) {
+          const existingAdmin = await this.usersService.findByEmail(updateFacilityDto.adminEmail);
+          if (existingAdmin && existingAdmin.id !== facilityAdmin.id) {
+            throw new BadRequestException('Facility admin email already exists');
+          }
+        }
+
+        const adminUpdatePayload = {
+          ...(updateFacilityDto.adminFirstName
+            ? { firstName: updateFacilityDto.adminFirstName }
+            : {}),
+          ...(updateFacilityDto.adminLastName
+            ? { lastName: updateFacilityDto.adminLastName }
+            : {}),
+          ...(updateFacilityDto.adminEmail
+            ? { email: updateFacilityDto.adminEmail }
+            : {}),
+          ...(updateFacilityDto.adminPassword
+            ? { password: updateFacilityDto.adminPassword }
+            : {}),
+        };
+
+        const updatedAdmin = await this.usersService.update(
+          facilityAdmin.id,
+          adminUpdatePayload,
+          owner,
+        );
+
+        facility.facilityAdminName = `${updatedAdmin.firstName} ${updatedAdmin.lastName}`;
+      }
+    }
+
+    facility.name = updateFacilityDto.name ?? facility.name;
+    facility.phone = updateFacilityDto.phone ?? facility.phone;
+    facility.email = updateFacilityDto.email ?? facility.email;
+    facility.type = updateFacilityDto.type ?? facility.type;
+    facility.status = updateFacilityDto.status ?? facility.status;
+    facility.contractStart = updateFacilityDto.contractStart
+      ? new Date(updateFacilityDto.contractStart)
+      : facility.contractStart;
+    facility.contractEnd = updateFacilityDto.contractEnd
+      ? new Date(updateFacilityDto.contractEnd)
+      : facility.contractEnd;
+
+    await facility.save();
+
+    return facility;
   }
 }
