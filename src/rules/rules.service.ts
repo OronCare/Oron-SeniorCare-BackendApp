@@ -82,7 +82,7 @@ const DEFAULT_RULES: SeedRule[] = [
       lowThreshold: 92,
       highThreshold: 100,
       criticalLow: 88,
-      criticalHigh: 100,
+      criticalHigh: 101,
       unit: '%',
     },
     isActive: true,

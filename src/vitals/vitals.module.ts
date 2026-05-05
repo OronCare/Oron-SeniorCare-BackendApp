@@ -6,9 +6,10 @@ import { Vital } from './vital.model';
 import { Resident } from '../residents/resident.model';
 import { Rule } from '../rules/rule.model';
 import { Task } from '../task/task.model';
+import { AlertsModule } from '../alerts/alerts.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Vital, Resident, Rule, Task])],
+  imports: [SequelizeModule.forFeature([Vital, Resident, Rule, Task]), AlertsModule],
   controllers: [VitalsController],
   providers: [VitalsService],
 })

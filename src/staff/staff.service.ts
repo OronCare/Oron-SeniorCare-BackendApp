@@ -7,6 +7,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../common/services/email.service';
+import * as bcrypt from 'bcrypt';
 
 
 @Injectable()
@@ -104,12 +105,14 @@ export class StaffService {
     }
 
     const tempPassword = `Temp@${Math.random().toString(36).slice(-8)}A1`;
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    
     const createdStaff = await this.userModel.create({
       firstName: createStaffDto.firstName,
       middleName: createStaffDto.middleName ?? null,
       lastName: createStaffDto.lastName,
       email: createStaffDto.email,
-      password: tempPassword,
+      password: hashedPassword,
       role: Role.STAFF,
       branchId: targetBranchId,
       facilityId: branch.facilityId,

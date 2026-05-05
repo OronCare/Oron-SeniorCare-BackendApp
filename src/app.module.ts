@@ -15,6 +15,8 @@ import { StaffModule } from './staff/staff.module';
 import { RulesModule } from './rules/rules.module';
 import { TaskModule } from './task/task.module';
 import { VitalsModule } from './vitals/vitals.module';
+import { NotesModule } from './notes/notes.module';
+import { AlertsModule } from './alerts/alerts.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { VitalsModule } from './vitals/vitals.module';
     RulesModule,
     TaskModule,
     VitalsModule,
+    NotesModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [

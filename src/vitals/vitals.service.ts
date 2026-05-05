@@ -3,7 +3,9 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import { Sequelize } from 'sequelize-typescript';
+import { Transaction } from 'sequelize';
 import { Vital } from './vital.model';
 import { CreateVitalDto } from './dto/create-vital.dto';
 import { Resident } from '../residents/resident.model';
@@ -11,21 +13,20 @@ import { Role } from '../common/enums/role.enum';
 import { User } from '../users/user.model';
 import { Rule } from '../rules/rule.model';
 import { Task } from '../task/task.model';
-
-type ThresholdLevel = 'NORMAL' | 'LOW' | 'HIGH' | 'CRITICAL_LOW' | 'CRITICAL_HIGH';
-
-type ThresholdResult = {
-  vitalType: string;
-  value: number;
-  unit: string;
-  level: ThresholdLevel;
-  ruleId: string;
-  ruleName: string;
-};
+import { encryptText, decryptText } from '../common/utils/encryption.util';
+import { ResidentData } from '../residents/interfaces/resident-data.interface';
+import {
+  computeResidentClinicalStatus,
+  type ThresholdLevel,
+  type ThresholdResult,
+} from './clinical-status.util';
+import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
 export class VitalsService {
   constructor(
+    @InjectConnection()
+    private readonly sequelize: Sequelize,
     @InjectModel(Vital)
     private readonly vitalModel: typeof Vital,
     @InjectModel(Resident)
@@ -34,6 +35,7 @@ export class VitalsService {
     private readonly ruleModel: typeof Rule,
     @InjectModel(Task)
     private readonly taskModel: typeof Task,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async create(createVitalDto: CreateVitalDto, currentUser: User): Promise<any> {
@@ -77,15 +79,66 @@ export class VitalsService {
     }
 
     const thresholdEvaluation = await this.evaluateThresholds(createVitalDto);
+    const evaluatedRuleKeys = Object.keys(thresholdEvaluation);
 
-    const vital = await this.vitalModel.create({
-      ...createVitalDto,
-      residentId: resident.id,
-      branchId: resident.branchId,
-      facilityId: resident.facilityId,
-      recordedById: currentUser.id,
-      date: new Date(createVitalDto.date),
-      thresholdEvaluation,
+    let previousHealthState: string | null = null;
+    try {
+      const data = JSON.parse(decryptText(resident.encryptedData)) as ResidentData;
+      previousHealthState = data.healthState ?? null;
+    } catch {
+      previousHealthState = null;
+    }
+
+    let clinicalHealthState: string | undefined;
+    const thresholdEvaluationStored: Record<string, unknown> = { ...thresholdEvaluation };
+
+    if (evaluatedRuleKeys.length > 0) {
+      const clinical = computeResidentClinicalStatus(thresholdEvaluation, previousHealthState);
+      clinicalHealthState = clinical.state;
+      thresholdEvaluationStored.clinicalSummary = {
+        clinicalHealthState: clinical.state,
+        recommendedAction: clinical.action,
+      };
+    }
+    const vitalDate = new Date(createVitalDto.date);
+
+    const vital = await this.sequelize.transaction(async (transaction: Transaction) => {
+      const created = await this.vitalModel.create(
+        {
+          ...createVitalDto,
+          residentId: resident.id,
+          branchId: resident.branchId,
+          facilityId: resident.facilityId,
+          recordedById: currentUser.id,
+          date: vitalDate,
+          thresholdEvaluation: thresholdEvaluationStored,
+        },
+        { transaction },
+      );
+
+      const residentData = JSON.parse(decryptText(resident.encryptedData)) as ResidentData;
+      residentData.lastVitalsDate = vitalDate.toISOString();
+      if (evaluatedRuleKeys.length > 0 && clinicalHealthState !== undefined) {
+        residentData.healthState = clinicalHealthState;
+      }
+      resident.encryptedData = encryptText(JSON.stringify(residentData));
+      await resident.save({ transaction });
+
+      await this.alertsService.createFromVitalAbnormalities(
+        {
+          vitalId: created.id,
+          facilityId: resident.facilityId,
+          branchId: resident.branchId,
+          residentId: resident.id,
+          residentName: this.toResidentDisplayName(residentData),
+          measuredAt: vitalDate,
+          thresholdEvaluation,
+          healthState: residentData.healthState,
+        },
+        transaction,
+      );
+
+      return created;
     });
 
     return this.buildVitalResponse(vital);
@@ -118,6 +171,11 @@ export class VitalsService {
   }
 
   private buildVitalResponse(vital: Vital): any {
+    const te = (vital.thresholdEvaluation ?? {}) as Record<string, unknown>;
+    const clinicalSummary = te.clinicalSummary as
+      | { clinicalHealthState?: string; recommendedAction?: string }
+      | undefined;
+
     return {
       id: vital.id,
       residentId: vital.residentId,
@@ -135,6 +193,8 @@ export class VitalsService {
       respiratoryRate: vital.respiratoryRate,
       notes: vital.notes,
       thresholdEvaluation: vital.thresholdEvaluation ?? {},
+      clinicalHealthState: clinicalSummary?.clinicalHealthState,
+      recommendedAction: clinicalSummary?.recommendedAction,
       createdAt: vital.createdAt,
       updatedAt: vital.updatedAt,
     };
@@ -206,7 +266,10 @@ export class VitalsService {
 
       if (value <= threshold.criticalLow) {
         level = 'CRITICAL_LOW';
-      } else if (value >= threshold.criticalHigh) {
+      } else if (
+        threshold.criticalHigh > threshold.highThreshold &&
+        value >= threshold.criticalHigh
+      ) {
         level = 'CRITICAL_HIGH';
       } else if (value < threshold.lowThreshold) {
         level = 'LOW';
@@ -225,5 +288,14 @@ export class VitalsService {
     }
 
     return result;
+  }
+
+  private toResidentDisplayName(residentData: ResidentData): string {
+    const pieces = [
+      residentData.firstName,
+      residentData.middleName ?? undefined,
+      residentData.lastName,
+    ].filter(Boolean);
+    return pieces.join(' ');
   }
 }
