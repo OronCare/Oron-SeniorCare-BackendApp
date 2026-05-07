@@ -9,6 +9,7 @@ import { Alert, AlertStatus, AlertSeverity } from './alert.model';
 import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
 import { ThresholdResult } from '../vitals/clinical-status.util';
+import { OneSignalService } from '../notifications/one-signal.service';
 
 interface VitalAlertContext {
   vitalId: string;
@@ -26,6 +27,7 @@ export class AlertsService {
   constructor(
     @InjectModel(Alert)
     private readonly alertModel: typeof Alert,
+    private readonly oneSignalService: OneSignalService,
   ) {}
 
   async createFromVitalAbnormalities(
@@ -40,30 +42,54 @@ export class AlertsService {
       return;
     }
 
-    const alertsPayload = abnormalities.map((evaluation) => {
-      const severity: AlertSeverity =
-        evaluation.level === 'CRITICAL_HIGH' || evaluation.level === 'CRITICAL_LOW'
-          ? 'Critical'
-          : 'Warning';
+    const hasCritical = abnormalities.some(
+      (e) => e.level === 'CRITICAL_HIGH' || e.level === 'CRITICAL_LOW',
+    );
+    const severity: AlertSeverity = hasCritical ? 'Critical' : 'Warning';
+    const status: AlertStatus = 'Unread';
 
-      const status: AlertStatus = 'Unread';
+    const messageLines = abnormalities
+      .map((e) => this.formatAbnormality(e))
+      .filter(Boolean);
 
-      return {
-        facilityId: context.facilityId,
-        branchId: context.branchId,
-        residentId: context.residentId,
-        title: this.buildAlertTitle(evaluation),
-        message: this.buildAlertMessage(context.residentName, evaluation),
-        severity,
-        status,
-        date: context.measuredAt,
-        targetRoles: ['admin', 'staff', 'facility_admin'],
-        healthState: context.healthState ?? null,
-        sourceVitalId: context.vitalId,
-      };
-    });
+    const title = `Vitals alert (${abnormalities.length})`;
+    const message = `${context.residentName} recorded vitals outside the normal range: ${messageLines.join(
+      '; ',
+    )}.`;
 
-    await this.alertModel.bulkCreate(alertsPayload, { transaction });
+    const alertPayload = {
+      facilityId: context.facilityId,
+      branchId: context.branchId,
+      residentId: context.residentId,
+      title,
+      message,
+      severity,
+      status,
+      date: context.measuredAt,
+      targetRoles: ['admin', 'staff', 'facility_admin'],
+      healthState: context.healthState ?? null,
+      sourceVitalId: context.vitalId,
+    };
+
+    await this.alertModel.create(alertPayload, { transaction });
+
+    const pushItems = [
+      {
+        title: alertPayload.title,
+        message: alertPayload.message,
+        severity: alertPayload.severity,
+      },
+    ];
+    const facilityId = context.facilityId;
+    const branchId = context.branchId;
+    const schedulePush = () => {
+      void this.oneSignalService.notifyNewAlerts(facilityId, branchId, pushItems);
+    };
+    if (transaction) {
+      transaction.afterCommit(schedulePush);
+    } else {
+      schedulePush();
+    }
   }
 
   async findAll(currentUser: User): Promise<Alert[]> {
@@ -164,5 +190,17 @@ export class AlertsService {
       respiratoryRate: 'Respiratory Rate',
     };
     return labels[vitalType] ?? vitalType;
+  }
+
+  private formatAbnormality(evaluation: ThresholdResult): string {
+    const vitalLabel = this.formatVitalName(evaluation.vitalType);
+    const direction =
+      evaluation.level === 'LOW' || evaluation.level === 'CRITICAL_LOW' ? 'low' : 'high';
+    const criticalPrefix =
+      evaluation.level === 'CRITICAL_HIGH' || evaluation.level === 'CRITICAL_LOW'
+        ? 'CRITICAL '
+        : '';
+    const ruleSuffix = evaluation.ruleName ? ` (${evaluation.ruleName})` : '';
+    return `${vitalLabel}: ${criticalPrefix}${direction} (${evaluation.value} ${evaluation.unit})${ruleSuffix}`;
   }
 }

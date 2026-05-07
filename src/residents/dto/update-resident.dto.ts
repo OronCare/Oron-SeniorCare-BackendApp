@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -96,10 +96,20 @@ export class UpdateResidentDto {
   height?: string;
 
   @IsArray()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return [];
+      }
+    }
+    return value;
+  })
   @ValidateNested({ each: true })
   @Type(() => EmergencyContactDto)
   @IsOptional()
-  emergencyContacts?: EmergencyContactDto[];
+  emergencyContacts?: EmergencyContactDto[] | string;
 
   @IsString()
   @IsOptional()
@@ -116,4 +126,8 @@ export class UpdateResidentDto {
   @IsDateString()
   @IsOptional()
   lastVitalsDate?: string;
+
+  @IsString()
+  @IsOptional()
+  photoUrl?: string;
 }

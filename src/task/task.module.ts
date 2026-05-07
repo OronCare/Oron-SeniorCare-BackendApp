@@ -7,9 +7,13 @@ import { User } from '../users/user.model';
 import { Branch } from '../branch/branch.model';
 import { Resident } from '../residents/resident.model';
 import { Facility } from '../facility/facility.model';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Task, User, Branch, Resident, Facility])],
+  imports: [
+    SequelizeModule.forFeature([Task, User, Branch, Resident, Facility]),
+    NotificationsModule,
+  ],
   controllers: [TaskController],
   providers: [TaskService],
 })

@@ -51,4 +51,8 @@ export class UpdateFacilityDto {
   @IsString()
   @MinLength(6)
   adminPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  contractDocumentUrl?: string;
 }

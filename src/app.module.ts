@@ -54,7 +54,13 @@ import { PreferencesModule } from './preferences/preferences.module';
     AppService,
     {
       provide: APP_PIPE,
-      useClass: ValidationPipe,
+      useValue: new ValidationPipe({
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+        whitelist: true,
+      }),
     },
   ],
 })

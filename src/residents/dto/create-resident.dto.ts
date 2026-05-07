@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -86,18 +86,32 @@ export class CreateResidentDto {
   @IsNotEmpty()
   admissionDate: string;
 
-  @IsNumber()
-  @Min(0)
-  weight: number;
+@Transform(({ value }) => {
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+})
+@IsNumber()
+@Min(0)
+weight: number;
 
   @IsString()
   @IsNotEmpty()
   height: string;
 
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => EmergencyContactDto)
-  emergencyContacts: EmergencyContactDto[];
+  @Transform(({ value }) => {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  return value;
+})
+@IsArray()
+@ValidateNested({ each: true })
+@Type(() => EmergencyContactDto)
+emergencyContacts: EmergencyContactDto[];
 
   @IsString()
   @IsNotEmpty()
