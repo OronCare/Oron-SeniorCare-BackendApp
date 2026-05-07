@@ -2,6 +2,7 @@ import {
   IsDateString,
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
@@ -50,4 +51,8 @@ export class CreateFacilityDto {
   @IsString()
   @MinLength(6)
   adminPassword: string;
+
+  @IsOptional()
+  @IsString()
+  contractDocumentUrl?: string;
 }

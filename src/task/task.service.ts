@@ -8,6 +8,7 @@ import { Branch } from '../branch/branch.model';
 import { Resident } from '../residents/resident.model';
 import { Facility } from '../facility/facility.model';
 import { Role } from '../common/enums/role.enum';
+import { OneSignalService } from '../notifications/one-signal.service';
 
 @Injectable()
 export class TaskService implements OnModuleInit {
@@ -22,6 +23,7 @@ export class TaskService implements OnModuleInit {
     private residentModel: typeof Resident,
     @InjectModel(Facility)
     private facilityModel: typeof Facility,
+    private readonly oneSignalService: OneSignalService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -71,12 +73,21 @@ export class TaskService implements OnModuleInit {
       throw new BadRequestException('Facility not found');
     }
 
-    return this.taskModel.create({
+    const task = await this.taskModel.create({
       ...createTaskDto,
       createdById: creatorId,
       dueDate: new Date(createTaskDto.dueDate),
     } as any);
 
+    void this.oneSignalService.notifyTaskAssigned({
+      assignedToUserId: createTaskDto.assignedToId,
+      title: createTaskDto.title,
+      dueDate: createTaskDto.dueDate,
+      category: createTaskDto.category,
+      description: createTaskDto.description,
+    });
+
+    return task;
   }
 
   async findAll(user: User) {
@@ -115,8 +126,22 @@ export class TaskService implements OnModuleInit {
   async update(id: string, updateTaskDto: UpdateTaskDto, user: User) {
     const task = await this.findOne(id, user);
 
-    if (user.role !== Role.BRANCH_ADMIN && task.createdById !== user.id) {
+    const isBranchAdmin = user.role === Role.BRANCH_ADMIN;
+    const isAssignedStaff =
+      user.role === Role.STAFF && task.assignedToId === user.id;
+
+    if (!isBranchAdmin && !isAssignedStaff && task.createdById !== user.id) {
       throw new ForbiddenException('You can only update tasks you created');
+    }
+
+    // Staff can only move their assigned tasks between statuses.
+    if (isAssignedStaff) {
+      const allowedKeys = new Set(['status']);
+      const keys = Object.keys(updateTaskDto ?? {});
+      const hasDisallowed = keys.some((k) => !allowedKeys.has(k));
+      if (hasDisallowed) {
+        throw new ForbiddenException('Staff can only update task status');
+      }
     }
 
     const updatePayload: any = { ...updateTaskDto };
@@ -124,7 +149,23 @@ export class TaskService implements OnModuleInit {
       updatePayload.dueDate = new Date(updatePayload.dueDate);
     }
 
+    const previousAssignee = task.assignedToId;
     await task.update(updatePayload);
+    if (
+      updatePayload.assignedToId &&
+      updatePayload.assignedToId !== previousAssignee
+    ) {
+      const titleForPush =
+        (updatePayload.title as string | undefined) ?? task.title;
+      void this.oneSignalService.notifyTaskAssigned({
+        assignedToUserId: updatePayload.assignedToId,
+        title: titleForPush,
+        dueDate: (updatePayload.dueDate as string | undefined) ?? task.dueDate,
+        category: (updatePayload.category as string | undefined) ?? task.category,
+        description:
+          (updatePayload.description as string | undefined) ?? task.description,
+      });
+    }
     return task;
   }
 

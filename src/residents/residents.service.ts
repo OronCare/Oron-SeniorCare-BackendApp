@@ -31,6 +31,7 @@ export class ResidentsService {
     createResidentDto: CreateResidentDto,
     currentUser: User,
     ipAddress?: string,
+    residentPhotoUrl?: string,
   ): Promise<any> {
     this.validateCreatePermissions(currentUser);
 
@@ -50,7 +51,10 @@ export class ResidentsService {
 
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
-    const encryptedData = encryptText(JSON.stringify(createResidentDto));
+    const residentPayload = residentPhotoUrl
+      ? { ...createResidentDto, photoUrl: residentPhotoUrl }
+      : createResidentDto;
+    const encryptedData = encryptText(JSON.stringify(residentPayload));
     const resident = await this.sequelize.transaction(async (transaction: Transaction) => {
       const resident = await this.residentModel.create(
         {
@@ -147,9 +151,12 @@ export class ResidentsService {
     }
 
     const currentData = this.decryptResidentData(resident.encryptedData);
+    const updatePayload = Object.fromEntries(
+      Object.entries(updateResidentDto as Record<string, unknown>).filter(([, value]) => value !== undefined),
+    ) as Partial<ResidentData>;
     const mergedData = {
       ...currentData,
-      ...updateResidentDto,
+      ...updatePayload,
     } as ResidentData;
 
     return this.sequelize.transaction(async (transaction: Transaction) => {

@@ -25,4 +25,5 @@ export interface ResidentData {
   allergies: string;
   primaryDiagnosis: string;
   lastVitalsDate: string;
+  photoUrl?: string;
 }

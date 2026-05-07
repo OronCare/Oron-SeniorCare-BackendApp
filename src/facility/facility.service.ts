@@ -53,6 +53,7 @@ export class FacilityService {
           status: createFacilityDto.status,
           contractStart: new Date(createFacilityDto.contractStart),
           contractEnd: new Date(createFacilityDto.contractEnd),
+          contractDocumentUrl: createFacilityDto.contractDocumentUrl ?? null,
           totalBranches: 0,
           totalResidents: 0,
           facilityAdminName: `${createFacilityDto.adminFirstName} ${createFacilityDto.adminLastName}`,
@@ -165,6 +166,7 @@ export class FacilityService {
     facility.contractEnd = updateFacilityDto.contractEnd
       ? new Date(updateFacilityDto.contractEnd)
       : facility.contractEnd;
+    facility.contractDocumentUrl = updateFacilityDto.contractDocumentUrl ?? facility.contractDocumentUrl;
 
     await facility.save();
 

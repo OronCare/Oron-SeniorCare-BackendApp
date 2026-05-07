@@ -17,6 +17,7 @@ export interface FacilityCreationAttributes {
   status: string;
   contractStart: Date;
   contractEnd: Date;
+  contractDocumentUrl?: string | null;
   facilityAdminId?: string | null;
   facilityAdminName?: string | null;
   totalBranches?: number;
@@ -65,6 +66,10 @@ export class Facility extends Model<Facility, FacilityCreationAttributes> {
   @AllowNull(false)
   @Column(DataType.DATE)
   declare contractEnd: Date;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare contractDocumentUrl?: string | null;
 
   @AllowNull(true)
   @Column(DataType.UUID)

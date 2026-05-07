@@ -42,7 +42,13 @@ import { AlertsModule } from './alerts/alerts.module';
     AppService,
     {
       provide: APP_PIPE,
-      useClass: ValidationPipe,
+      useValue: new ValidationPipe({
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+        whitelist: true,
+      }),
     },
   ],
 })
