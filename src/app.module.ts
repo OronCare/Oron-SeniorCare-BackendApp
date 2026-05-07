@@ -17,6 +17,12 @@ import { TaskModule } from './task/task.module';
 import { VitalsModule } from './vitals/vitals.module';
 import { NotesModule } from './notes/notes.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { CarePlansModule } from './care-plans/care-plans.module';
+import { ClinicalAssessmentsModule } from './clinical-assessments/clinical-assessments.module';
+import { RiskProfilesModule } from './risk-profiles/risk-profiles.module';
+import { GoalsModule } from './goals/goals.module';
+import { InterventionsModule } from './interventions/interventions.module';
+import { PreferencesModule } from './preferences/preferences.module';
 
 @Module({
   imports: [
@@ -36,6 +42,12 @@ import { AlertsModule } from './alerts/alerts.module';
     VitalsModule,
     NotesModule,
     AlertsModule,
+    CarePlansModule,
+    ClinicalAssessmentsModule,
+    RiskProfilesModule,
+    GoalsModule,
+    InterventionsModule,
+    PreferencesModule,
   ],
   controllers: [AppController],
   providers: [

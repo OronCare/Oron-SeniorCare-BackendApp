@@ -35,9 +35,9 @@ export class FacilityController {
   }
 
   @Get(':id')
-  @Roles(Role.OWNER)
-  async findOne(@Param('id') id: string) {
-    return this.facilityService.findOne(id);
+  @Roles(Role.OWNER, Role.FACILITY_ADMIN, Role.BRANCH_ADMIN, Role.STAFF)
+  async findOne(@Param('id') id: string, @CurrentUser() currentUser: User) {
+    return this.facilityService.findOne(id, currentUser);
   }
 
   @Put(':id')

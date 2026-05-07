@@ -95,8 +95,22 @@ export class FacilityService {
     return this.facilityModel.findAll();
   }
 
-  async findOne(id: string): Promise<Facility | null> {
-    return this.facilityModel.findByPk(id);
+  async findOne(id: string, currentUser: User): Promise<Facility | null> {
+    const facility = await this.facilityModel.findByPk(id);
+    if (!facility) {
+      return null;
+    }
+
+    if (currentUser.role === Role.OWNER) {
+      return facility;
+    }
+
+    // Facility/branch scoped roles can only read their own facility
+    if (!currentUser.facilityId || facility.id !== currentUser.facilityId) {
+      throw new ForbiddenException('Cannot access facilities outside your scope');
+    }
+
+    return facility;
   }
 
   async update(id: string, updateFacilityDto: UpdateFacilityDto, owner: User): Promise<Facility> {

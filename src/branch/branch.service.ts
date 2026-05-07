@@ -142,6 +142,13 @@ export class BranchService {
       return branch;
     }
 
-    throw new ForbiddenException('Only owner or facility admin can view branch details');
+    if (currentUser.role === Role.BRANCH_ADMIN || currentUser.role === Role.STAFF) {
+      if (!currentUser.branchId || branch.id !== currentUser.branchId) {
+        throw new ForbiddenException('Cannot access branches outside your scope');
+      }
+      return branch;
+    }
+
+    throw new ForbiddenException('Insufficient permissions to view branch details');
   }
 }

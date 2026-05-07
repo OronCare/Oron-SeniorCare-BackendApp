@@ -54,7 +54,7 @@ export class BranchController {
   }
 
   @Get(':id')
-  @Roles(Role.OWNER, Role.FACILITY_ADMIN)
+  @Roles(Role.OWNER, Role.FACILITY_ADMIN, Role.BRANCH_ADMIN, Role.STAFF)
   async findOne(@Param('id') id: string, @CurrentUser() currentUser: User) {
     return this.branchService.findOne(id, currentUser);
   }
