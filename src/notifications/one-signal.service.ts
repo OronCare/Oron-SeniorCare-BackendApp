@@ -15,6 +15,24 @@ export class OneSignalService {
     private readonly userModel: typeof User,
   ) {}
 
+  async notifyOwners(
+    items: Array<{ title: string; message: string; severity: string }>,
+  ): Promise<void> {
+    const externalIds = await this.resolveOwnerUserIds();
+    if (externalIds.length === 0) {
+      return;
+    }
+    for (const item of items) {
+      const severityPrefix = item.severity === 'Critical' ? '[CRITICAL]' : '[ALERT]';
+      await this.sendNotification({
+        include_external_user_ids: externalIds,
+        headings: { en: `${severityPrefix} ${item.title}` },
+        contents: { en: item.message },
+        data: { type: 'alert', severity: item.severity },
+      });
+    }
+  }
+
   async notifyNewAlerts(
     facilityId: string,
     branchId: string,
@@ -81,7 +99,21 @@ export class OneSignalService {
     return [...new Set(rows.map((u) => u.id))];
   }
 
+  private async resolveOwnerUserIds(): Promise<string[]> {
+    const rows = await this.userModel.findAll({
+      where: { role: Role.OWNER },
+      attributes: ['id'],
+    });
+    return [...new Set(rows.map((u) => u.id))];
+  }
+
   private async sendNotification(body: Record<string, unknown>): Promise<void> {
+    const disable = (this.config.get<string>('DISABLE_BROWSER_NOTIFICATIONS') || '')
+      .toLowerCase() === 'true';
+    if (disable) {
+      return;
+    }
+
     const appId = this.config.get<string>('ONESIGNAL_APP_ID');
     const apiKey = this.config.get<string>('ONESIGNAL_REST_API_KEY');
     if (!appId || !apiKey) {

@@ -8,11 +8,13 @@ import { Branch } from '../branch/branch.model';
 import { Resident } from '../residents/resident.model';
 import { Facility } from '../facility/facility.model';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AlertsModule } from '../alerts/alerts.module';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Task, User, Branch, Resident, Facility]),
     NotificationsModule,
+    AlertsModule,
   ],
   controllers: [TaskController],
   providers: [TaskService],

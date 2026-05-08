@@ -12,6 +12,7 @@ import { encryptText, decryptText } from '../common/utils/encryption.util';
 import { ResidentData } from './interfaces/resident-data.interface';
 import { Role } from '../common/enums/role.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
 export class ResidentsService {
@@ -25,6 +26,7 @@ export class ResidentsService {
     @InjectConnection()
     private readonly sequelize: Sequelize,
     private readonly auditLogsService: AuditLogsService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async create(
@@ -56,6 +58,10 @@ export class ResidentsService {
       : createResidentDto;
     const encryptedData = encryptText(JSON.stringify(residentPayload));
     const resident = await this.sequelize.transaction(async (transaction: Transaction) => {
+      const beforeUtilization = this.computeUtilizationPercent(
+        branch.currentResidents,
+        branch.residentLimit,
+      );
       const resident = await this.residentModel.create(
         {
           branchId: createResidentDto.branchId,
@@ -72,6 +78,24 @@ export class ResidentsService {
         branch.save({ transaction }),
         facility.save({ transaction }),
       ]);
+
+      const afterUtilization = this.computeUtilizationPercent(
+        branch.currentResidents,
+        branch.residentLimit,
+      );
+      if (this.crossedHighUtilizationThreshold(beforeUtilization, afterUtilization)) {
+        await this.alertsService.createFromBranchHighUtilization(
+          {
+            facilityId: branch.facilityId,
+            branchId: branch.id,
+            branchName: branch.name,
+            residentLimit: branch.residentLimit,
+            currentResidents: branch.currentResidents,
+            utilizationPercent: afterUtilization,
+          },
+          transaction,
+        );
+      }
 
       return resident;
     });
@@ -160,6 +184,14 @@ export class ResidentsService {
     } as ResidentData;
 
     return this.sequelize.transaction(async (transaction: Transaction) => {
+      const oldBeforeUtilization = oldBranch
+        ? this.computeUtilizationPercent(oldBranch.currentResidents, oldBranch.residentLimit)
+        : 0;
+      const newBeforeUtilization =
+        branch && (!oldBranch || branch.id !== oldBranch.id)
+          ? this.computeUtilizationPercent(branch.currentResidents, branch.residentLimit)
+          : 0;
+
       if (branch && oldBranch && branch.id !== oldBranch.id) {
         oldBranch.currentResidents = Math.max(0, oldBranch.currentResidents - 1);
         branch.currentResidents += 1;
@@ -182,6 +214,35 @@ export class ResidentsService {
         resident.save({ transaction }),
       ]);
 
+      if (oldBranch) {
+        const oldAfterUtilization = this.computeUtilizationPercent(
+          oldBranch.currentResidents,
+          oldBranch.residentLimit,
+        );
+        // we only alert on crossing upwards, so moving OUT won't trigger
+        void oldAfterUtilization;
+      }
+
+      if (branch && oldBranch && branch.id !== oldBranch.id) {
+        const newAfterUtilization = this.computeUtilizationPercent(
+          branch.currentResidents,
+          branch.residentLimit,
+        );
+        if (this.crossedHighUtilizationThreshold(newBeforeUtilization, newAfterUtilization)) {
+          await this.alertsService.createFromBranchHighUtilization(
+            {
+              facilityId: branch.facilityId,
+              branchId: branch.id,
+              branchName: branch.name,
+              residentLimit: branch.residentLimit,
+              currentResidents: branch.currentResidents,
+              utilizationPercent: newAfterUtilization,
+            },
+            transaction,
+          );
+        }
+      }
+
       return this.buildResidentResponse(resident);
     });
   }
@@ -200,6 +261,9 @@ export class ResidentsService {
     const facility = await this.facilityModel.findByPk(resident.facilityId);
 
     return this.sequelize.transaction(async (transaction: Transaction) => {
+      const beforeUtilization = branch
+        ? this.computeUtilizationPercent(branch.currentResidents, branch.residentLimit)
+        : 0;
       const result = await this.residentModel.destroy({ where: { id }, transaction });
 
       if (result > 0) {
@@ -297,5 +361,14 @@ export class ResidentsService {
     if (currentUser.role === Role.BRANCH_ADMIN && currentUser.branchId !== branch.id) {
       throw new ForbiddenException('Cannot create resident outside your branch');
     }
+  }
+
+  private computeUtilizationPercent(currentResidents: number, residentLimit: number): number {
+    if (!residentLimit || residentLimit <= 0) return 0;
+    return (currentResidents / residentLimit) * 100;
+  }
+
+  private crossedHighUtilizationThreshold(beforePercent: number, afterPercent: number): boolean {
+    return beforePercent < 90 && afterPercent >= 90;
   }
 }
