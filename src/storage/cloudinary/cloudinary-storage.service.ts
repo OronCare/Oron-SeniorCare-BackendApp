@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
+import path from 'path';
 import { PassThrough } from 'stream';
 import type { UploadApiResponse } from 'cloudinary';
 import { StorageService } from '../storage.service';
@@ -36,11 +37,13 @@ export class CloudinaryStorageService implements StorageService {
       const result = await new Promise<UploadApiResponse>((resolve, reject) => {
         const desiredResourceType: UploadApiResponse['resource_type'] =
           mimeType === 'application/pdf' ? 'raw' : 'auto';
+        const nameWithoutExt = path.parse(originalName).name;
         const uploadStream = cloudinary.uploader.upload_stream(
           {
             type: 'authenticated',
             resource_type: desiredResourceType,
-            filename_override: originalName,
+            // This avoids storing public_id like `something.pdf` for documents.
+            filename_override: nameWithoutExt,
             use_filename: true,
             unique_filename: true,
           },
