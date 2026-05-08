@@ -15,7 +15,11 @@ export class CloudinaryStorageService implements StorageService {
     });
   }
 
-  async upload(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<{ publicId: string }> {
+  async upload(
+    fileBuffer: Buffer,
+    originalName: string,
+    mimeType: string,
+  ): Promise<{ publicId: string; resourceType: UploadApiResponse['resource_type']; format?: string; version?: number }> {
     try {
       const result = await new Promise<UploadApiResponse>((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
@@ -40,24 +44,58 @@ export class CloudinaryStorageService implements StorageService {
         passthrough.pipe(uploadStream);
       });
 
-      return { publicId: result.public_id };
+      return {
+        publicId: result.public_id,
+        resourceType: result.resource_type,
+        format: result.format,
+        version: result.version,
+      };
     } catch (e) {
       throw new InternalServerErrorException('Failed to upload file');
     }
   }
 
-  async getSignedUrl(publicId: string, expiresInSeconds = 300): Promise<string> {
+  async getSignedUrl(
+    publicId: string,
+    expiresInSeconds?: number,
+  ): Promise<string>;
+  async getSignedUrl(
+    publicId: string,
+    opts?: {
+      expiresInSeconds?: number;
+      resourceType?: UploadApiResponse['resource_type'];
+      format?: string;
+      version?: number;
+    },
+  ): Promise<string>;
+  async getSignedUrl(
+    publicId: string,
+    arg?:
+      | number
+      | {
+          expiresInSeconds?: number;
+          resourceType?: UploadApiResponse['resource_type'];
+          format?: string;
+          version?: number;
+        },
+  ): Promise<string> {
+    const opts = typeof arg === 'number' ? { expiresInSeconds: arg } : arg;
+    const expiresInSeconds = opts?.expiresInSeconds ?? 300;
     const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
     return cloudinary.url(publicId, {
       type: 'authenticated',
+      resource_type: opts?.resourceType ?? 'raw',
+      format: opts?.format,
+      version: opts?.version,
+      secure: true,
       sign_url: true,
       expires_at: expiresAt,
     });
   }
 
-  async delete(publicId: string): Promise<void> {
+  async delete(publicId: string, resourceType: UploadApiResponse['resource_type'] = 'raw'): Promise<void> {
     try {
-      await cloudinary.uploader.destroy(publicId, { type: 'authenticated' });
+      await cloudinary.uploader.destroy(publicId, { type: 'authenticated', resource_type: resourceType });
     } catch {
       throw new InternalServerErrorException('Failed to delete file');
     }
