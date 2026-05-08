@@ -6,9 +6,10 @@ import { Resident } from './resident.model';
 import { Branch } from '../branch/branch.model';
 import { Facility } from '../facility/facility.model';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
-  imports: [SequelizeModule.forFeature([Resident, Branch, Facility]), AuditLogsModule],
+  imports: [SequelizeModule.forFeature([Resident, Branch, Facility]), AuditLogsModule, StorageModule],
   controllers: [ResidentsController],
   providers: [ResidentsService],
 })

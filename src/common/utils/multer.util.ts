@@ -1,4 +1,4 @@
-import { diskStorage, Options } from 'multer';
+import { diskStorage, memoryStorage, Options } from 'multer';
 import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
@@ -32,6 +32,30 @@ export const createMulterOptions = (
       callback(null, `${Date.now()}-${fileName}${fileExtension.toLowerCase()}`);
     },
   }),
+  limits: {
+    fileSize: maxSizeInBytes,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      callback(null, false);
+      return;
+    }
+
+    callback(null, true);
+  },
+});
+
+/**
+ * Cloud upload-friendly multer options.
+ *
+ * Uses in-memory storage so controllers can stream the buffer to a cloud provider
+ * (Cloudinary today; AWS S3 later via the StorageService abstraction).
+ */
+export const createMemoryMulterOptions = (
+  allowedMimeTypes: string[],
+  maxSizeInBytes: number,
+): Options => ({
+  storage: memoryStorage(),
   limits: {
     fileSize: maxSizeInBytes,
   },

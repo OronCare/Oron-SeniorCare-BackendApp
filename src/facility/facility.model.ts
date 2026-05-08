@@ -17,7 +17,15 @@ export interface FacilityCreationAttributes {
   status: string;
   contractStart: Date;
   contractEnd: Date;
+  /**
+   * Legacy column kept for backwards compatibility (previously stored a local URL).
+   * Do NOT store URLs anymore; use `contractDocumentPublicId` instead.
+   */
   contractDocumentUrl?: string | null;
+  /**
+   * Cloud storage identifier (Cloudinary publicId today; S3 key later).
+   */
+  contractDocumentPublicId?: string | null;
   facilityAdminId?: string | null;
   facilityAdminName?: string | null;
   totalBranches?: number;
@@ -70,6 +78,10 @@ export class Facility extends Model<Facility, FacilityCreationAttributes> {
   @AllowNull(true)
   @Column(DataType.STRING)
   declare contractDocumentUrl?: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare contractDocumentPublicId?: string | null;
 
   @AllowNull(true)
   @Column(DataType.UUID)

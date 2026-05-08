@@ -51,8 +51,4 @@ export class CreateFacilityDto {
   @IsString()
   @MinLength(6)
   adminPassword: string;
-
-  @IsOptional()
-  @IsString()
-  contractDocumentUrl?: string;
 }

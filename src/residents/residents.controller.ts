@@ -24,7 +24,7 @@ import { User } from '../users/user.model';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { createMulterOptions } from '../common/utils/multer.util';
+import { createMemoryMulterOptions } from '../common/utils/multer.util';
 
 @ApiTags('Residents')
 @ApiBearerAuth()
@@ -49,7 +49,7 @@ export class ResidentsController {
   @UseInterceptors(
     FileInterceptor(
       'residentPhoto',
-      createMulterOptions('residents', ['image/jpeg', 'image/png', 'image/webp'], 5 * 1024 * 1024),
+      createMemoryMulterOptions(['image/jpeg', 'image/png', 'image/webp'], 5 * 1024 * 1024),
     ),
   )
   @ApiOperation({ summary: 'Create a new resident record' })
@@ -62,13 +62,11 @@ export class ResidentsController {
     @UploadedFile() residentPhoto?: Express.Multer.File,
   ) {
     const normalizedCreateDto = this.normalizeCreateDto(createResidentDto);
-    const residentPhotoUrl = residentPhoto ? `/uploads/residents/${residentPhoto.filename}` : undefined;
-
     return this.residentsService.create(
       normalizedCreateDto,
       currentUser,
       this.getClientIp(req),
-      residentPhotoUrl,
+      residentPhoto,
     );
   }
 
@@ -120,7 +118,7 @@ export class ResidentsController {
   @UseInterceptors(
     FileInterceptor(
       'residentPhoto',
-      createMulterOptions('residents', ['image/jpeg', 'image/png', 'image/webp'], 5 * 1024 * 1024),
+      createMemoryMulterOptions(['image/jpeg', 'image/png', 'image/webp'], 5 * 1024 * 1024),
     ),
   )
   @ApiOperation({ summary: 'Update a resident record' })
@@ -133,11 +131,11 @@ export class ResidentsController {
     @UploadedFile() residentPhoto?: Express.Multer.File,
   ) {
     const normalizedUpdateDto = this.normalizeUpdateDto(updateResidentDto);
-    const residentPhotoUrl = residentPhoto ? `/uploads/residents/${residentPhoto.filename}` : undefined;
     return this.residentsService.update(
       id,
-      residentPhotoUrl ? { ...normalizedUpdateDto, photoUrl: residentPhotoUrl } : normalizedUpdateDto,
+      normalizedUpdateDto,
       currentUser,
+      residentPhoto,
     );
   }
 

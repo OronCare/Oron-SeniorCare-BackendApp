@@ -25,5 +25,14 @@ export interface ResidentData {
   allergies: string;
   primaryDiagnosis: string;
   lastVitalsDate: string;
+  /**
+   * Backwards-compatible response field.
+   * This is returned as a short-lived signed URL (NOT stored in DB).
+   */
   photoUrl?: string;
+  /**
+   * Stored in DB (inside encrypted payload) instead of a URL.
+   * Used to generate signed URLs on demand.
+   */
+  photoPublicId?: string;
 }

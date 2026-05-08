@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Transaction } from 'sequelize';
@@ -12,6 +12,9 @@ import { encryptText, decryptText } from '../common/utils/encryption.util';
 import { ResidentData } from './interfaces/resident-data.interface';
 import { Role } from '../common/enums/role.enum';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { STORAGE_SERVICE } from '../storage/storage.service';
+import type { StorageService } from '../storage/storage.service';
+import { getUploadsSignedUrlExpirySeconds } from '../common/config/uploads.config';
 
 @Injectable()
 export class ResidentsService {
@@ -25,13 +28,14 @@ export class ResidentsService {
     @InjectConnection()
     private readonly sequelize: Sequelize,
     private readonly auditLogsService: AuditLogsService,
+    @Inject(STORAGE_SERVICE) private readonly storageService: StorageService,
   ) {}
 
   async create(
     createResidentDto: CreateResidentDto,
     currentUser: User,
     ipAddress?: string,
-    residentPhotoUrl?: string,
+    residentPhoto?: Express.Multer.File,
   ): Promise<any> {
     this.validateCreatePermissions(currentUser);
 
@@ -51,9 +55,15 @@ export class ResidentsService {
 
     this.validateOwnershipForCreate(currentUser, branch, facility);
 
-    const residentPayload = residentPhotoUrl
-      ? { ...createResidentDto, photoUrl: residentPhotoUrl }
-      : createResidentDto;
+    let residentPayload: CreateResidentDto & Partial<ResidentData> = createResidentDto;
+    if (residentPhoto?.buffer) {
+      const { publicId } = await this.storageService.upload(
+        residentPhoto.buffer,
+        residentPhoto.originalname,
+        residentPhoto.mimetype,
+      );
+      residentPayload = { ...createResidentDto, photoPublicId: publicId };
+    }
     const encryptedData = encryptText(JSON.stringify(residentPayload));
     const resident = await this.sequelize.transaction(async (transaction: Transaction) => {
       const resident = await this.residentModel.create(
@@ -103,7 +113,7 @@ export class ResidentsService {
   async findAll(currentUser: User): Promise<any[]> {
     const whereClause = this.buildWhereClause(currentUser);
     const residents = await this.residentModel.findAll({ where: whereClause });
-    return residents.map(resident => this.buildResidentResponse(resident));
+    return Promise.all(residents.map(resident => this.buildResidentResponse(resident)));
   }
 
   async findOne(id: string, currentUser: User): Promise<any> {
@@ -116,7 +126,12 @@ export class ResidentsService {
     return this.buildResidentResponse(resident);
   }
 
-  async update(id: string, updateResidentDto: UpdateResidentDto, currentUser: User): Promise<any> {
+  async update(
+    id: string,
+    updateResidentDto: UpdateResidentDto,
+    currentUser: User,
+    residentPhoto?: Express.Multer.File,
+  ): Promise<any> {
     const resident = await this.residentModel.findByPk(id);
     if (!resident) {
       throw new BadRequestException('Resident not found');
@@ -154,6 +169,15 @@ export class ResidentsService {
     const updatePayload = Object.fromEntries(
       Object.entries(updateResidentDto as Record<string, unknown>).filter(([, value]) => value !== undefined),
     ) as Partial<ResidentData>;
+
+    if (residentPhoto?.buffer) {
+      const { publicId } = await this.storageService.upload(
+        residentPhoto.buffer,
+        residentPhoto.originalname,
+        residentPhoto.mimetype,
+      );
+      updatePayload.photoPublicId = publicId;
+    }
     const mergedData = {
       ...currentData,
       ...updatePayload,
@@ -218,12 +242,20 @@ export class ResidentsService {
     });
   }
 
-  private buildResidentResponse(resident: Resident): any {
+  private async buildResidentResponse(resident: Resident): Promise<any> {
+    const data = this.decryptResidentData(resident.encryptedData);
+    const signedPhotoUrl = data.photoPublicId
+      ? await this.storageService.getSignedUrl(data.photoPublicId, getUploadsSignedUrlExpirySeconds())
+      : undefined;
+
+    const { photoPublicId, ...rest } = data;
+
     return {
       id: resident.id,
       branchId: resident.branchId,
       facilityId: resident.facilityId,
-      ...this.decryptResidentData(resident.encryptedData),
+      ...rest,
+      ...(signedPhotoUrl ? { photoUrl: signedPhotoUrl } : {}),
       createdAt: resident.createdAt,
       updatedAt: resident.updatedAt,
     };

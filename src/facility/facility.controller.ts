@@ -20,7 +20,7 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.model';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { createMulterOptions } from '../common/utils/multer.util';
+import { createMemoryMulterOptions } from '../common/utils/multer.util';
 
 @Controller('facilities')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,7 +32,7 @@ export class FacilityController {
   @UseInterceptors(
     FileInterceptor(
       'contractDocument',
-      createMulterOptions('facilities/contracts', ['application/pdf'], 10 * 1024 * 1024),
+      createMemoryMulterOptions(['application/pdf'], 10 * 1024 * 1024),
     ),
   )
   async create(
@@ -41,14 +41,7 @@ export class FacilityController {
     @UploadedFile() contractDocument?: Express.Multer.File,
   ) {
     const normalizedDto = this.normalizeCreateDto(createFacilityDto);
-    const contractDocumentUrl = contractDocument
-      ? `/uploads/facilities/contracts/${contractDocument.filename}`
-      : undefined;
-
-    return this.facilityService.create(
-      { ...normalizedDto, contractDocumentUrl },
-      owner,
-    );
+    return this.facilityService.create(normalizedDto, owner, contractDocument);
   }
 
   @Get()
