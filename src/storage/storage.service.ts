@@ -1,5 +1,15 @@
 export type StorageUploadResult = {
   publicId: string;
+  resourceType?: 'image' | 'video' | 'raw' | 'auto';
+  format?: string;
+  version?: number;
+};
+
+export type StorageSignedUrlOptions = {
+  expiresInSeconds?: number;
+  resourceType?: 'image' | 'video' | 'raw' | 'auto';
+  format?: string;
+  version?: number;
 };
 
 /**
@@ -12,7 +22,8 @@ export type StorageUploadResult = {
 export interface StorageService {
   upload(fileBuffer: Buffer, originalName: string, mimeType: string): Promise<StorageUploadResult>;
   getSignedUrl(publicId: string, expiresInSeconds?: number): Promise<string>;
-  delete(publicId: string): Promise<void>;
+  getSignedUrl(publicId: string, opts?: StorageSignedUrlOptions): Promise<string>;
+  delete(publicId: string, resourceType?: 'image' | 'video' | 'raw' | 'auto'): Promise<void>;
 }
 
 export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE');
