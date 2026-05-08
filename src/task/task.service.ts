@@ -9,6 +9,7 @@ import { Resident } from '../residents/resident.model';
 import { Facility } from '../facility/facility.model';
 import { Role } from '../common/enums/role.enum';
 import { OneSignalService } from '../notifications/one-signal.service';
+import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
 export class TaskService implements OnModuleInit {
@@ -24,6 +25,7 @@ export class TaskService implements OnModuleInit {
     @InjectModel(Facility)
     private facilityModel: typeof Facility,
     private readonly oneSignalService: OneSignalService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -78,6 +80,18 @@ export class TaskService implements OnModuleInit {
       createdById: creatorId,
       dueDate: new Date(createTaskDto.dueDate),
     } as any);
+
+    await this.alertsService.createFromTaskAssignment({
+      facilityId: createTaskDto.facilityId,
+      branchId: createTaskDto.branchId,
+      residentId: createTaskDto.residentId,
+      assignedToUserId: createTaskDto.assignedToId,
+      title: createTaskDto.title,
+      dueDate: createTaskDto.dueDate,
+      category: createTaskDto.category,
+      description: createTaskDto.description,
+      createdAt: new Date(),
+    });
 
     void this.oneSignalService.notifyTaskAssigned({
       assignedToUserId: createTaskDto.assignedToId,
@@ -157,6 +171,20 @@ export class TaskService implements OnModuleInit {
     ) {
       const titleForPush =
         (updatePayload.title as string | undefined) ?? task.title;
+
+      await this.alertsService.createFromTaskAssignment({
+        facilityId: task.facilityId,
+        branchId: task.branchId,
+        residentId: task.residentId,
+        assignedToUserId: updatePayload.assignedToId,
+        title: titleForPush,
+        dueDate: (updatePayload.dueDate as string | undefined) ?? task.dueDate,
+        category: (updatePayload.category as string | undefined) ?? task.category,
+        description:
+          (updatePayload.description as string | undefined) ?? task.description,
+        createdAt: new Date(),
+      });
+
       void this.oneSignalService.notifyTaskAssigned({
         assignedToUserId: updatePayload.assignedToId,
         title: titleForPush,

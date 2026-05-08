@@ -22,6 +22,28 @@ interface VitalAlertContext {
   healthState?: string;
 }
 
+interface TaskAssignedAlertContext {
+  facilityId: string;
+  branchId: string;
+  residentId: string;
+  assignedToUserId: string;
+  title: string;
+  dueDate?: string | Date;
+  category?: string;
+  description?: string;
+  createdAt?: Date;
+}
+
+interface BranchUtilizationAlertContext {
+  facilityId: string;
+  branchId: string;
+  branchName: string;
+  residentLimit: number;
+  currentResidents: number;
+  utilizationPercent: number;
+  createdAt?: Date;
+}
+
 @Injectable()
 export class AlertsService {
   constructor(
@@ -29,6 +51,85 @@ export class AlertsService {
     private readonly alertModel: typeof Alert,
     private readonly oneSignalService: OneSignalService,
   ) {}
+
+  async createFromBranchHighUtilization(
+    context: BranchUtilizationAlertContext,
+    transaction?: Transaction,
+  ): Promise<void> {
+    const utilization = Math.round(context.utilizationPercent);
+    const severity: AlertSeverity = utilization >= 100 ? 'Critical' : 'Warning';
+
+    const alertPayload = {
+      facilityId: context.facilityId,
+      branchId: context.branchId,
+      residentId: null,
+      title: 'High branch utilization',
+      message: `${context.branchName} is at ${utilization}% capacity (${context.currentResidents}/${context.residentLimit}).`,
+      severity,
+      status: 'Unread' as AlertStatus,
+      date: context.createdAt ?? new Date(),
+      targetRoles: ['owner'],
+      healthState: null,
+      sourceVitalId: null,
+    };
+
+    await this.alertModel.create(alertPayload, { transaction });
+
+    const pushItems = [
+      {
+        title: alertPayload.title,
+        message: alertPayload.message,
+        severity: alertPayload.severity,
+      },
+    ];
+
+    const schedulePush = () => {
+      void this.oneSignalService.notifyOwners(pushItems);
+    };
+    if (transaction) {
+      transaction.afterCommit(schedulePush);
+    } else {
+      schedulePush();
+    }
+  }
+
+  async createFromTaskAssignment(
+    context: TaskAssignedAlertContext,
+    transaction?: Transaction,
+  ): Promise<void> {
+    const due =
+      context.dueDate !== undefined && context.dueDate !== null
+        ? new Date(context.dueDate).toLocaleString()
+        : undefined;
+
+    const lines = [
+      context.category ? `Category: ${context.category}` : undefined,
+      due ? `Due: ${due}` : undefined,
+      context.description ? context.description : undefined,
+    ].filter(Boolean) as string[];
+
+    const message = lines.length
+      ? `${context.title} — ${lines.join(' • ')}`
+      : context.title;
+
+    await this.alertModel.create(
+      {
+        facilityId: context.facilityId,
+        branchId: context.branchId,
+        residentId: context.residentId,
+        title: 'Task assigned',
+        message,
+        severity: 'Info',
+        status: 'Unread',
+        date: context.createdAt ?? new Date(),
+        // Staff should see it in the header bell (/alerts).
+        targetRoles: ['staff'],
+        healthState: null,
+        sourceVitalId: null,
+      },
+      { transaction },
+    );
+  }
 
   async createFromVitalAbnormalities(
     context: VitalAlertContext,
