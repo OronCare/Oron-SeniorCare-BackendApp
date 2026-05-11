@@ -4,7 +4,6 @@ import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { sequelizeConfig } from './database/database.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { FacilityModule } from './facility/facility.module';
@@ -22,13 +21,41 @@ import { RiskProfilesModule } from './risk-profiles/risk-profiles.module';
 import { GoalsModule } from './goals/goals.module';
 import { InterventionsModule } from './interventions/interventions.module';
 import { PreferencesModule } from './preferences/preferences.module';
+import { User } from './users/user.model';
+import { Facility } from './facility/facility.model';
+import { Branch } from './branch/branch.model';
+import { Resident } from './residents/resident.model';
+import { Staff } from './staff/staff.model';
+
+// Import pg directly at module level — forces Vercel to bundle it
+import * as pg from 'pg';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    SequelizeModule.forRoot(sequelizeConfig),
+    SequelizeModule.forRootAsync({
+      useFactory: () => ({
+        dialect: 'postgres',
+        dialectModule: pg,           // ← uses the top-level import
+        host: process.env.DB_HOST,
+        port: parseInt(process.env.DB_PORT || '5432'),
+        username: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        models: [User, Facility, Branch, Resident, Staff],
+        autoLoadModels: true,
+        synchronize: false,
+        logging: false,
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        },
+      }),
+    }),
     AuthModule,
     UsersModule,
     FacilityModule,
@@ -54,9 +81,7 @@ import { PreferencesModule } from './preferences/preferences.module';
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         transform: true,
-        transformOptions: {
-          enableImplicitConversion: true,
-        },
+        transformOptions: { enableImplicitConversion: true },
         whitelist: true,
       }),
     },
