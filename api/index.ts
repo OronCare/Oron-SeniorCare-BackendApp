@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from '../src/app.module';
 
 let app: NestExpressApplication;
 
@@ -24,22 +24,14 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-      },
+      swaggerOptions: { persistAuthorization: true },
     });
 
-    await app.init(); // ← KEY CHANGE: init() not listen() for Vercel
+    await app.init();
   }
   return app;
 }
 
-// Local development only
-if (process.env.NODE_ENV !== 'production') {
-  bootstrap().then((app) => app.listen(process.env.PORT ?? 3000));
-}
-
-// Vercel serverless handler
 export default async (req: any, res: any) => {
   const server = await bootstrap();
   server.getHttpAdapter().getInstance()(req, res);
