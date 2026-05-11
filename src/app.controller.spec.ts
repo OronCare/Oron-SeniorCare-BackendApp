@@ -15,8 +15,11 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return health payload', () => {
+      const res = appController.getRoot();
+      expect(res.status).toBe('ok');
+      expect(res.service).toBe('Oron SeniorCare API');
+      expect(res.docs).toBe('/api');
     });
   });
 });
