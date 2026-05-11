@@ -8,7 +8,12 @@ let app: NestExpressApplication;
 async function bootstrap() {
   if (!app) {
     app = await NestFactory.create<NestExpressApplication>(AppModule);
-    app.enableCors();
+    app.enableCors({
+      origin: process.env.CORS_ORIGIN || '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
+    });
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Oron SeniorCare API')
