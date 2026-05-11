@@ -5,7 +5,6 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { sequelizeConfig } from './database/database.config';
-import { PrismaModule } from './auth/prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { FacilityModule } from './facility/facility.module';
@@ -30,7 +29,6 @@ import { PreferencesModule } from './preferences/preferences.module';
       isGlobal: true,
     }),
     SequelizeModule.forRoot(sequelizeConfig),
-    PrismaModule,
     AuthModule,
     UsersModule,
     FacilityModule,
