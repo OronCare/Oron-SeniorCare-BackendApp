@@ -7,6 +7,7 @@ import {
   CreatedAt,
   AllowNull,
   Unique,
+  Index,
 } from 'sequelize-typescript';
 import { Role } from '../common/enums/role.enum';
 
@@ -61,6 +62,19 @@ export class User extends Model<User, UserCreationAttributes> {
   @AllowNull(false)
   @Column(DataType.STRING)
   declare password: string;
+
+  @AllowNull(true)
+  @Index({ unique: true })
+  @Column(DataType.STRING)
+  declare passwordSetTokenHash?: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare passwordSetTokenExpiresAt?: Date | null;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare passwordSetTokenUsedAt?: Date | null;
 
   @AllowNull(false)
   @Column({

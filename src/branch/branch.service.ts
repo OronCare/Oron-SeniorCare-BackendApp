@@ -14,6 +14,7 @@ import { Facility } from '../facility/facility.model';
 import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../common/services/email.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class BranchService {
@@ -61,12 +62,12 @@ export class BranchService {
       );
 
       // Create branch admin user for the new branch.
-      const branchAdmin = await this.usersService.create(
+      const { user: branchAdmin, rawToken } = await this.usersService.createWithSetPasswordToken(
         {
           firstName: branchAdminFirstName,
           lastName: branchAdminLastName,
           email: branchAdminEmail,
-          password: branchAdminPassword,
+          password: crypto.randomBytes(24).toString('base64url'),
           role: Role.BRANCH_ADMIN,
           facilityId: facility.id,
           branchId: branch.id,
@@ -78,10 +79,12 @@ export class BranchService {
       branch.branchAdminId = branchAdmin.id;
       branch.branchAdminName = `${branchAdmin.firstName} ${branchAdmin.lastName}`;
       await branch.save({ transaction });
-      await this.emailService.sendFacilityAdminCredentials(
+      const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?token=${encodeURIComponent(rawToken)}`;
+      await this.emailService.sendSetPasswordLink(
         branchAdmin.email,
         branchAdmin.firstName,
-        branchAdminPassword,
+        setPasswordUrl,
         branch.name,
       );
 

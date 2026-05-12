@@ -91,4 +91,359 @@ export class EmailService {
       throw new InternalServerErrorException('Failed to send facility admin credentials email');
     }
   }
+
+  async sendSetPasswordLink(email: string, firstName: string, setPasswordUrl: string, contextName?: string) {
+    this.logger.log(`Attempting to send set-password email to ${email}, enabled: ${this.enabled}`);
+
+    if (!this.enabled || !this.transporter) {
+      this.logger.warn(`Skipping set-password email send because SMTP is not configured: ${email}`);
+      return;
+    }
+
+    const subject = contextName
+      ? `Set your Oron SeniorCare password for ${contextName}`
+      : 'Set your Oron SeniorCare password';
+
+    const text =
+      `Hello ${firstName},\n\n` +
+      `Your Oron SeniorCare account has been created.\n\n` +
+      `To set your password, open this link:\n${setPasswordUrl}\n\n` +
+      `If you did not expect this email, you can ignore it.\n\n` +
+      `Regards,\nOron Health\n\n` +
+      `5539 N Mesa\nEl Paso, TX 79912`;
+
+    const headline = contextName ? `Your ${contextName} account is ready` : 'Your account is ready';
+
+    let logoUrl = (process.env.EMAIL_LOGO_URL || '').trim();
+    if ((logoUrl.startsWith('"') && logoUrl.endsWith('"')) || (logoUrl.startsWith("'") && logoUrl.endsWith("'"))) {
+      logoUrl = logoUrl.slice(1, -1).trim();
+    }
+
+    const escapeHtmlAttr = (v: string) =>
+      v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+    const logoImgSrc = logoUrl ? escapeHtmlAttr(logoUrl) : '';
+    const html = `
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>Oron Health</title>
+</head>
+
+<body style="
+  margin:0;
+  padding:0;
+  background:#f1f5f9;
+  font-family:Arial, Helvetica, sans-serif;
+">
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9; padding:40px 0;">
+    <tr>
+      <td align="center">
+
+        <!-- Main Container -->
+        <table width="640" cellpadding="0" cellspacing="0" border="0" style="
+          width:640px;
+          max-width:640px;
+        ">
+
+          <!-- Header -->
+          <tr>
+            <td style="
+              background:linear-gradient(135deg,#0E649B 0%, #8E44AD 100%);
+              border-radius:24px 24px 0 0;
+              padding:32px 36px;
+            ">
+
+              <table width="100%">
+                <tr>
+
+                  <!-- Logo -->
+                  <td align="left" valign="middle">
+
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+
+                        <td style="
+                          width:54px;
+                          height:54px;
+                          background:#ffffff;
+                          border-radius:16px;
+                          overflow:hidden;
+                          text-align:center;
+                          vertical-align:middle;
+                          box-shadow:0 8px 20px rgba(0,0,0,0.15);
+                        ">
+
+                          ${
+                            logoImgSrc
+                              ? `
+                            <img
+                              src="${logoImgSrc}"
+                              width="54"
+                              height="54"
+                              alt="Oron"
+                              style="
+                                display:block;
+                                width:54px;
+                                height:54px;
+                              "
+                            />
+                          `
+                              : ''
+                          }
+
+                        </td>
+
+                        <td style="padding-left:16px;">
+
+                          <div style="
+                            color:#ffffff;
+                            font-size:24px;
+                            font-weight:700;
+                            letter-spacing:0.4px;
+                          ">
+                            ORON Health
+                          </div>
+
+                          <div style="
+                            color:rgba(255,255,255,0.85);
+                            font-size:13px;
+                            margin-top:4px;
+                          ">
+                            SeniorCare Platform
+                          </div>
+
+                        </td>
+
+                      </tr>
+                    </table>
+
+                  </td>
+
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="
+              background:#ffffff;
+              padding:48px 40px;
+              border-left:1px solid #e2e8f0;
+              border-right:1px solid #e2e8f0;
+            ">
+
+              <!-- Badge -->
+              <div style="margin-bottom:24px;">
+
+                <span style="
+                  background:#dcfce7;
+                  color:#166534;
+                  padding:8px 14px;
+                  border-radius:999px;
+                  font-size:12px;
+                  font-weight:700;
+                  letter-spacing:0.3px;
+                  text-transform:uppercase;
+                ">
+                  Account Setup
+                </span>
+
+              </div>
+
+              <!-- Heading -->
+              <h1 style="
+                margin:0;
+                font-size:34px;
+                line-height:42px;
+                color:#0f172a;
+                font-weight:700;
+              ">
+                ${headline}
+              </h1>
+
+              <!-- Intro -->
+              <p style="
+                margin:24px 0 0 0;
+                font-size:16px;
+                line-height:28px;
+                color:#475569;
+              ">
+                Hello <strong>${firstName}</strong>,
+              </p>
+
+              <p style="
+                margin:16px 0 0 0;
+                font-size:16px;
+                line-height:28px;
+                color:#475569;
+              ">
+                Your Oron SeniorCare account has been successfully created.
+                To securely access your dashboard and begin managing your facility,
+                please set your password using the button below.
+              </p>
+
+              <!-- CTA -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
+                <tr>
+                  <td align="center" bgcolor="#16a34a" style="
+                    border-radius:14px;
+                    box-shadow:0 10px 24px rgba(22,163,74,0.28);
+                  ">
+
+                    <a
+                      href="${setPasswordUrl}"
+                      target="_blank"
+                      style="
+                        display:inline-block;
+                        padding:16px 28px;
+                        color:#ffffff;
+                        font-size:15px;
+                        font-weight:700;
+                        text-decoration:none;
+                        border-radius:14px;
+                      "
+                    >
+                      Set Your Password
+                    </a>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Secondary Info -->
+              <p style="
+                margin:32px 0 0 0;
+                font-size:14px;
+                line-height:24px;
+                color:#64748b;
+              ">
+                For security purposes, this link may expire after some time.
+                If the button above does not work, copy and paste the following URL into your browser:
+              </p>
+
+              <!-- URL Box -->
+              <div style="
+                margin-top:16px;
+                padding:18px;
+                background:#f8fafc;
+                border:1px solid #e2e8f0;
+                border-radius:14px;
+                word-break:break-all;
+                font-size:13px;
+                line-height:22px;
+                color:#0f172a;
+              ">
+                ${setPasswordUrl}
+              </div>
+
+              <!-- Divider -->
+              <div style="
+                height:1px;
+                background:#e2e8f0;
+                margin:40px 0;
+              "></div>
+
+              <!-- Footer Text -->
+              <p style="
+                margin:0;
+                font-size:13px;
+                line-height:24px;
+                color:#64748b;
+              ">
+                If you did not request this email, you can safely ignore it.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="
+              background:#ffffff;
+              border:1px solid #e2e8f0;
+              border-top:none;
+              border-radius:0 0 24px 24px;
+              padding:32px 40px;
+            ">
+
+              <table width="100%">
+                <tr>
+
+                  <td align="left">
+
+                    <div style="
+                      font-size:15px;
+                      font-weight:700;
+                      color:#0f172a;
+                    ">
+                      ORON Health
+                    </div>
+
+                    <div style="
+                      margin-top:8px;
+                      font-size:13px;
+                      line-height:22px;
+                      color:#64748b;
+                    ">
+                      5539 N Mesa<br/>
+                      El Paso, TX 79912
+                    </div>
+
+                  </td>
+
+                  <td align="right">
+
+                    <div style="
+                      font-size:12px;
+                      color:#94a3b8;
+                    ">
+                      © 2026 ORON Health
+                    </div>
+
+                  </td>
+
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+`;
+
+    try {
+      if (logoUrl) {
+        this.logger.log('Set-password email: using EMAIL_LOGO_URL for header image');
+      } else {
+        this.logger.warn('EMAIL_LOGO_URL is not set; password email will show no logo image');
+      }
+      this.logger.log(`Sending set-password email to ${email} from ${this.fromAddress}`);
+      const info = await this.transporter.sendMail({
+        from: this.fromAddress,
+        to: email,
+        subject,
+        text,
+        html,
+      });
+      this.logger.log(
+        `Email sent. Message ID: ${info.messageId}, accepted: ${(info.accepted || []).join(',')}, rejected: ${(info.rejected || []).join(',')}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to send set-password email to ${email}`, error as any);
+      throw new InternalServerErrorException('Failed to send set-password email');
+    }
+  }
 }

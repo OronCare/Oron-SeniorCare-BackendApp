@@ -9,6 +9,7 @@ import { LocalStrategy } from './strategies/local.strategies';
 import { UsersModule } from '../users/users.module';
 import { RolesGuard } from './guards/roles.guard';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { PasswordController } from './password/password.controller';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
       signOptions: { expiresIn: '1d' },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasswordController],
   providers: [AuthService, JwtStrategy, LocalStrategy, RolesGuard],
   exports: [AuthService, RolesGuard],
 })

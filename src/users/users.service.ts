@@ -5,6 +5,7 @@ import { User } from './user.model';
 import { Role } from '../common/enums/role.enum';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -31,6 +32,14 @@ export class UsersService {
    * Create a new user with role-based permissions
    */
   async create(userData: CreateUserDto, creator?: User, transaction?: Transaction): Promise<User> {
+    const user = await this.createInternal(userData, creator, transaction);
+
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user.toJSON();
+    return userWithoutPassword as User;
+  }
+
+  private async createInternal(userData: CreateUserDto, creator?: User, transaction?: Transaction): Promise<User> {
     // Validate role-based permissions
     await this.validateUserCreationPermissions(userData.role, creator);
 
@@ -58,10 +67,25 @@ export class UsersService {
       },
       { transaction },
     );
+    return user;
+  }
 
-    // Remove password from response
+  async createWithSetPasswordToken(
+    userData: CreateUserDto,
+    creator: User | undefined,
+    transaction: Transaction,
+    ttlMinutes = 60,
+  ): Promise<{ user: User; rawToken: string }> {
+    const user = await this.createInternal(userData, creator, transaction);
+
+    const rawToken = this.generateRawToken();
+    user.passwordSetTokenHash = this.hashToken(rawToken);
+    user.passwordSetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+    user.passwordSetTokenUsedAt = null;
+    await user.save({ transaction });
+
     const { password, ...userWithoutPassword } = user.toJSON();
-    return userWithoutPassword as User;
+    return { user: userWithoutPassword as User, rawToken };
   }
 
   /**
@@ -93,6 +117,50 @@ export class UsersService {
     // Remove password from response
     const { password, ...userWithoutPassword } = updatedUser.toJSON();
     return userWithoutPassword as User;
+  }
+
+  private hashToken(rawToken: string): string {
+    return crypto.createHash('sha256').update(rawToken).digest('hex');
+  }
+
+  generateRawToken(): string {
+    return crypto.randomBytes(32).toString('base64url');
+  }
+
+  async createSetPasswordToken(userId: string, ttlMinutes = 60): Promise<{ rawToken: string }> {
+    const user = await this.userModel.findByPk(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const rawToken = this.generateRawToken();
+    user.passwordSetTokenHash = this.hashToken(rawToken);
+    user.passwordSetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+    user.passwordSetTokenUsedAt = null;
+    await user.save();
+
+    return { rawToken };
+  }
+
+  async consumeSetPasswordToken(rawToken: string): Promise<User> {
+    if (!rawToken) {
+      throw new BadRequestException('token is required');
+    }
+    const tokenHash = this.hashToken(rawToken);
+    const user = await this.userModel.findOne({ where: { passwordSetTokenHash: tokenHash } });
+    if (!user) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+    if (user.passwordSetTokenUsedAt) {
+      throw new BadRequestException('Token already used');
+    }
+    if (!user.passwordSetTokenExpiresAt || user.passwordSetTokenExpiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    user.passwordSetTokenUsedAt = new Date();
+    await user.save();
+    return user;
   }
 
   /**
