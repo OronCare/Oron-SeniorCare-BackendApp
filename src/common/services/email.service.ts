@@ -70,9 +70,9 @@ export class EmailService {
       return;
     }
 
-    const subject = `Your Facility Admin Account for ${facilityName}`;
-    const text = `Hello ${firstName},\n\nYour facility admin account has been created for ${facilityName}.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease sign in and change your password immediately.\n\nRegards,\nOron Health`;
-    const html = `<p>Hello ${firstName},</p><p>Your facility admin account has been created for <strong>${facilityName}</strong>.</p><p><strong>Email:</strong> ${email}<br/><strong>Password:</strong> ${password}</p><p>Please sign in and change your password immediately.</p><p>Regards,<br/>Oron Health</p>`;
+    const subject = `Your Oron SeniorCare Account for ${facilityName}`;
+    const text = `Hello ${firstName},\n\nYour account has been created for Oron SeniorCare.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease sign in with above credentials\n\nRegards,\nOron Health`;
+    const html = `<p>Hello ${firstName},</p><p>Your account has been created for Oron SeniorCare.</p><p><strong>Email:</strong> ${email}<br/><strong>Password:</strong> ${password}</p><p>Please sign in with above credentials</p><p>Regards,<br/>Oron Health</p>`;
 
     try {
       this.logger.log(`Sending email to ${email} from ${this.fromAddress}`);
