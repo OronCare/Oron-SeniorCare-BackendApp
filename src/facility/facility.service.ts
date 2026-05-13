@@ -18,6 +18,7 @@ import { CreateFacilityResponse } from './interfaces/create-facility.response';
 import { STORAGE_SERVICE } from '../storage/storage.service';
 import type { StorageService } from '../storage/storage.service';
 import { getUploadsSignedUrlExpirySeconds } from '../common/config/uploads.config';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class FacilityService {
@@ -78,12 +79,13 @@ export class FacilityService {
         { transaction },
       );
 
-      const facilityAdmin = await this.usersService.create(
+      const { user: facilityAdmin, rawToken } = await this.usersService.createWithSetPasswordToken(
         {
           firstName: createFacilityDto.adminFirstName,
           lastName: createFacilityDto.adminLastName,
           email: createFacilityDto.adminEmail,
-          password: createFacilityDto.adminPassword,
+          // Store a strong random password and ask the user to set their own via emailed link.
+          password: crypto.randomBytes(24).toString('base64url'),
           role: Role.FACILITY_ADMIN,
           facilityId: facility.id,
         },
@@ -95,16 +97,18 @@ export class FacilityService {
       facility.facilityAdminName = `${facilityAdmin.firstName} ${facilityAdmin.lastName}`;
       await facility.save({ transaction });
 
-      await this.emailService.sendFacilityAdminCredentials(
+      const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?inviteCode=${encodeURIComponent(rawToken)}`;
+      await this.emailService.sendSetPasswordLink(
         facilityAdmin.email,
         facilityAdmin.firstName,
-        createFacilityDto.adminPassword,
+        setPasswordUrl,
         facility.name,
       );
 
       return {
         facility,
-        facilityAdminTemporaryPassword: createFacilityDto.adminPassword,
+        facilityAdminTemporaryPassword: null as any,
       };
     });
   }

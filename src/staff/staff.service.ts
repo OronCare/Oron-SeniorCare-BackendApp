@@ -7,7 +7,9 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../common/services/email.service';
+import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 
 @Injectable()
@@ -19,6 +21,7 @@ export class StaffService {
     private readonly branchModel: typeof Branch,
     private readonly auditLogsService: AuditLogsService,
     private readonly emailService: EmailService,
+    private readonly usersService: UsersService,
 
   ) {}
 
@@ -104,8 +107,8 @@ export class StaffService {
       throw new BadRequestException('Staff email already exists');
     }
 
-    const tempPassword = `Temp@${Math.random().toString(36).slice(-8)}A1`;
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const randomPassword = crypto.randomBytes(24).toString('base64url');
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
     
     const createdStaff = await this.userModel.create({
       firstName: createStaffDto.firstName,
@@ -122,11 +125,15 @@ export class StaffService {
       permissions: createStaffDto.permissions,
     });
 
-    await this.emailService.sendFacilityAdminCredentials(
+    const { rawInviteCode } = await this.usersService.issuePasswordInviteCode(createdStaff.id);
+
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?inviteCode=${encodeURIComponent(rawInviteCode)}`;
+    await this.emailService.sendSetPasswordLink(
       createdStaff.email,
       createdStaff.firstName,
-      tempPassword,
-      createdStaff.lastName,
+      setPasswordUrl,
+      branch.name,
     );
 
     const actorName = [currentUser.firstName, currentUser.middleName, currentUser.lastName]

@@ -4,7 +4,9 @@ import { Transaction } from 'sequelize';
 import { User } from './user.model';
 import { Role } from '../common/enums/role.enum';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
+import { INVITE_EXPIRED_MESSAGE, INVITE_INVALID_MESSAGE } from './invite-messages';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -31,6 +33,14 @@ export class UsersService {
    * Create a new user with role-based permissions
    */
   async create(userData: CreateUserDto, creator?: User, transaction?: Transaction): Promise<User> {
+    const user = await this.createInternal(userData, creator, transaction);
+
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user.toJSON();
+    return userWithoutPassword as User;
+  }
+
+  private async createInternal(userData: CreateUserDto, creator?: User, transaction?: Transaction): Promise<User> {
     // Validate role-based permissions
     await this.validateUserCreationPermissions(userData.role, creator);
 
@@ -58,10 +68,53 @@ export class UsersService {
       },
       { transaction },
     );
+    return user;
+  }
 
-    // Remove password from response
+  private getInviteTtlMinutes(explicit?: number): number {
+    if (explicit != null && Number.isFinite(explicit) && explicit > 0) {
+      return explicit;
+    }
+    const fromEnv = parseInt(process.env.INVITE_TTL_MINUTES || '60', 10);
+    return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 60;
+  }
+
+  async createWithSetPasswordToken(
+    userData: CreateUserDto,
+    creator: User | undefined,
+    transaction: Transaction,
+    ttlMinutes?: number,
+  ): Promise<{ user: User; rawToken: string }> {
+    const user = await this.createInternal(userData, creator, transaction);
+    const ttl = this.getInviteTtlMinutes(ttlMinutes);
+
+    const rawToken = this.generateRawToken();
+    user.inviteToken = this.hashToken(rawToken);
+    user.inviteExpires = new Date(Date.now() + ttl * 60 * 1000);
+    await user.save({ transaction });
+
     const { password, ...userWithoutPassword } = user.toJSON();
-    return userWithoutPassword as User;
+    return { user: userWithoutPassword as User, rawToken };
+  }
+
+  /**
+   * Issue a new password-invite for an existing user (e.g. staff created outside UsersService).
+   */
+  async issuePasswordInviteCode(
+    userId: string,
+    transaction?: Transaction,
+    ttlMinutes?: number,
+  ): Promise<{ rawInviteCode: string }> {
+    const user = await this.userModel.findByPk(userId, { transaction });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    const ttl = this.getInviteTtlMinutes(ttlMinutes);
+    const rawInviteCode = this.generateRawToken();
+    user.inviteToken = this.hashToken(rawInviteCode);
+    user.inviteExpires = new Date(Date.now() + ttl * 60 * 1000);
+    await user.save({ transaction });
+    return { rawInviteCode };
   }
 
   /**
@@ -93,6 +146,60 @@ export class UsersService {
     // Remove password from response
     const { password, ...userWithoutPassword } = updatedUser.toJSON();
     return userWithoutPassword as User;
+  }
+
+  private hashToken(rawToken: string): string {
+    return crypto.createHash('sha256').update(rawToken).digest('hex');
+  }
+
+  generateRawToken(): string {
+    return crypto.randomBytes(32).toString('base64url');
+  }
+
+  async createSetPasswordToken(userId: string, ttlMinutes?: number): Promise<{ rawToken: string }> {
+    const { rawInviteCode } = await this.issuePasswordInviteCode(userId, undefined, ttlMinutes);
+    return { rawToken: rawInviteCode };
+  }
+
+  async verifyInviteCode(
+    rawInviteCode: string,
+  ): Promise<
+    | { valid: true }
+    | { valid: false; reason: 'expired' | 'invalid'; message: string }
+  > {
+    if (!rawInviteCode?.trim()) {
+      return { valid: false, reason: 'invalid', message: INVITE_INVALID_MESSAGE };
+    }
+    const tokenHash = this.hashToken(rawInviteCode);
+    const user = await this.userModel.findOne({ where: { inviteToken: tokenHash } });
+    if (!user) {
+      return { valid: false, reason: 'invalid', message: INVITE_INVALID_MESSAGE };
+    }
+    if (!user.inviteExpires || user.inviteExpires.getTime() < Date.now()) {
+      return { valid: false, reason: 'expired', message: INVITE_EXPIRED_MESSAGE };
+    }
+    return { valid: true };
+  }
+
+  async setPasswordWithInviteCode(rawInviteCode: string, plainPassword: string): Promise<void> {
+    if (!rawInviteCode?.trim()) {
+      throw new BadRequestException(INVITE_INVALID_MESSAGE);
+    }
+    const tokenHash = this.hashToken(rawInviteCode);
+    const user = await this.userModel.findOne({ where: { inviteToken: tokenHash } });
+    if (!user) {
+      throw new BadRequestException(INVITE_INVALID_MESSAGE);
+    }
+    if (!user.inviteExpires || user.inviteExpires.getTime() < Date.now()) {
+      throw new BadRequestException(INVITE_EXPIRED_MESSAGE);
+    }
+
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    await user.update({
+      password: hashedPassword,
+      inviteToken: null,
+      inviteExpires: null,
+    });
   }
 
   /**

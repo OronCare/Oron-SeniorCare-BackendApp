@@ -9,6 +9,7 @@ export type RootHealthResponse = {
 
 @Injectable()
 export class AppService {
+  
   getRootHealth(): RootHealthResponse {
     return {
       status: 'ok',

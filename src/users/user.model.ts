@@ -7,6 +7,7 @@ import {
   CreatedAt,
   AllowNull,
   Unique,
+  Index,
 } from 'sequelize-typescript';
 import { Role } from '../common/enums/role.enum';
 
@@ -61,6 +62,16 @@ export class User extends Model<User, UserCreationAttributes> {
   @AllowNull(false)
   @Column(DataType.STRING)
   declare password: string;
+
+  /** SHA-256 hash of the raw invite code sent by email (never store the raw code). */
+  @AllowNull(true)
+  @Index({ unique: true })
+  @Column(DataType.STRING)
+  declare inviteToken?: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare inviteExpires?: Date | null;
 
   @AllowNull(false)
   @Column({
