@@ -106,9 +106,9 @@ export class EmailService {
 
     const text =
       `Hello ${firstName},\n\n` +
-      `Your Oron SeniorCare account has been created.\n\n` +
-      `To set your password, open this link:\n${setPasswordUrl}\n\n` +
-      `If you did not expect this email, you can ignore it.\n\n` +
+      `Your Oron SeniorCare account has been created.\n` +
+      `To set your password, open this link:\n${setPasswordUrl}\n` +
+      `If you did not expect this email, you can ignore it.\n` +
       `Regards,\nOron Health\n\n` +
       `5539 N Mesa\nEl Paso, TX 79912`;
 
@@ -177,13 +177,12 @@ export class EmailService {
                           box-shadow:0 8px 20px rgba(0,0,0,0.15);
                         ">
 
-                          ${
-                            logoImgSrc
-                              ? `
+                          ${logoImgSrc
+        ? `
                             <img
                               src="${logoImgSrc}"
-                              width="54"
-                              height="54"
+                              width="56"
+                              height="56"
                               alt="Oron"
                               style="
                                 display:block;
@@ -192,8 +191,8 @@ export class EmailService {
                               "
                             />
                           `
-                              : ''
-                          }
+        : ''
+      }
 
                         </td>
 
@@ -205,7 +204,7 @@ export class EmailService {
                             font-weight:700;
                             letter-spacing:0.4px;
                           ">
-                            ORON Health
+                            ORON Care
                           </div>
 
                           <div style="
@@ -318,7 +317,7 @@ export class EmailService {
 
               <!-- Secondary Info -->
               <p style="
-                margin:32px 0 0 0;
+                margin:20px 0 0 0;
                 font-size:14px;
                 line-height:24px;
                 color:#64748b;
@@ -327,26 +326,11 @@ export class EmailService {
                 If the button above does not work, copy and paste the following URL into your browser:
               </p>
 
-              <!-- URL Box -->
-              <div style="
-                margin-top:16px;
-                padding:18px;
-                background:#f8fafc;
-                border:1px solid #e2e8f0;
-                border-radius:14px;
-                word-break:break-all;
-                font-size:13px;
-                line-height:22px;
-                color:#0f172a;
-              ">
-                ${setPasswordUrl}
-              </div>
-
               <!-- Divider -->
               <div style="
                 height:1px;
                 background:#e2e8f0;
-                margin:40px 0;
+                margin:20px 0;
               "></div>
 
               <!-- Footer Text -->
@@ -363,56 +347,45 @@ export class EmailService {
           </tr>
 
           <!-- Footer -->
-          <tr>
-            <td style="
-              background:#ffffff;
-              border:1px solid #e2e8f0;
-              border-top:none;
-              border-radius:0 0 24px 24px;
-              padding:32px 40px;
-            ">
+          <!-- Footer -->
+<tr>
+  <td style="
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-top:none;
+    border-radius:0 0 24px 24px;
+    padding:28px 40px;
+    text-align:center;
+  ">
 
-              <table width="100%">
-                <tr>
+    <!-- Divider -->
+    <div style="
+      height:1px;
+      background:#e2e8f0;
+      margin-bottom:22px;
+    "></div>
 
-                  <td align="left">
+    <!-- Address -->
+    <div style="
+      font-size:13px;
+      line-height:22px;
+      color:#64748b;
+      margin-bottom:18px;
+    ">
+      5539 N Mesa<br/>
+      El Paso, TX 79912
+    </div>
 
-                    <div style="
-                      font-size:15px;
-                      font-weight:700;
-                      color:#0f172a;
-                    ">
-                      ORON Health
-                    </div>
+    <!-- Copyright -->
+    <div style="
+      font-size:13px;
+      color:#94a3b8;
+    ">
+      © ORON Care. All rights reserved.
+    </div>
 
-                    <div style="
-                      margin-top:8px;
-                      font-size:13px;
-                      line-height:22px;
-                      color:#64748b;
-                    ">
-                      5539 N Mesa<br/>
-                      El Paso, TX 79912
-                    </div>
-
-                  </td>
-
-                  <td align="right">
-
-                    <div style="
-                      font-size:12px;
-                      color:#94a3b8;
-                    ">
-                      © 2026 ORON Health
-                    </div>
-
-                  </td>
-
-                </tr>
-              </table>
-
-            </td>
-          </tr>
+  </td>
+</tr>
 
         </table>
 
