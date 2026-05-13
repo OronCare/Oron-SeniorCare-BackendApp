@@ -80,7 +80,7 @@ export class BranchService {
       branch.branchAdminName = `${branchAdmin.firstName} ${branchAdmin.lastName}`;
       await branch.save({ transaction });
       const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?token=${encodeURIComponent(rawToken)}`;
+      const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?inviteCode=${encodeURIComponent(rawToken)}`;
       await this.emailService.sendSetPasswordLink(
         branchAdmin.email,
         branchAdmin.firstName,

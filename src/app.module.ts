@@ -27,6 +27,7 @@ import { Facility } from './facility/facility.model';
 import { Branch } from './branch/branch.model';
 import { Resident } from './residents/resident.model';
 import { Staff } from './staff/staff.model';
+import { PasswordResetOtp } from './auth/password/password-reset-otp.model';
 
 // Import pg directly at module level — forces Vercel to bundle it
 import * as pg from 'pg';
@@ -45,7 +46,7 @@ import * as pg from 'pg';
         username: process.env.DB_USER,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
-        models: [User, Facility, Branch, Resident, Staff],
+        models: [User, Facility, Branch, Resident, Staff, PasswordResetOtp],
         autoLoadModels: true,
         synchronize: false,
         logging: false,

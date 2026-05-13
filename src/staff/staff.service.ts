@@ -7,6 +7,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../common/services/email.service';
+import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -20,12 +21,9 @@ export class StaffService {
     private readonly branchModel: typeof Branch,
     private readonly auditLogsService: AuditLogsService,
     private readonly emailService: EmailService,
+    private readonly usersService: UsersService,
 
   ) {}
-
-  private hashToken(rawToken: string): string {
-    return crypto.createHash('sha256').update(rawToken).digest('hex');
-  }
 
   private mapStaffUser(user: User) {
     return {
@@ -127,14 +125,10 @@ export class StaffService {
       permissions: createStaffDto.permissions,
     });
 
-    const rawToken = crypto.randomBytes(32).toString('base64url');
-    createdStaff.passwordSetTokenHash = this.hashToken(rawToken);
-    createdStaff.passwordSetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
-    createdStaff.passwordSetTokenUsedAt = null;
-    await createdStaff.save();
+    const { rawInviteCode } = await this.usersService.issuePasswordInviteCode(createdStaff.id);
 
     const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?token=${encodeURIComponent(rawToken)}`;
+    const setPasswordUrl = `${frontendBaseUrl.replace(/\/$/, '')}/set-password?inviteCode=${encodeURIComponent(rawInviteCode)}`;
     await this.emailService.sendSetPasswordLink(
       createdStaff.email,
       createdStaff.firstName,

@@ -1,10 +1,11 @@
-import { IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class SetPasswordDto {
-  @ApiProperty({ description: 'One-time token from email link' })
+  @ApiProperty({ description: 'Invite code from the account setup email link (query: inviteCode)' })
   @IsString()
-  token!: string;
+  @IsNotEmpty()
+  inviteCode!: string;
 
   @ApiProperty({ description: 'New password' })
   @IsString()

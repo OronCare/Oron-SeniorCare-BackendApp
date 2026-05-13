@@ -4,6 +4,7 @@ import { Transaction } from 'sequelize';
 import { User } from './user.model';
 import { Role } from '../common/enums/role.enum';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
+import { INVITE_EXPIRED_MESSAGE, INVITE_INVALID_MESSAGE } from './invite-messages';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -70,22 +71,50 @@ export class UsersService {
     return user;
   }
 
+  private getInviteTtlMinutes(explicit?: number): number {
+    if (explicit != null && Number.isFinite(explicit) && explicit > 0) {
+      return explicit;
+    }
+    const fromEnv = parseInt(process.env.INVITE_TTL_MINUTES || '60', 10);
+    return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 60;
+  }
+
   async createWithSetPasswordToken(
     userData: CreateUserDto,
     creator: User | undefined,
     transaction: Transaction,
-    ttlMinutes = 60,
+    ttlMinutes?: number,
   ): Promise<{ user: User; rawToken: string }> {
     const user = await this.createInternal(userData, creator, transaction);
+    const ttl = this.getInviteTtlMinutes(ttlMinutes);
 
     const rawToken = this.generateRawToken();
-    user.passwordSetTokenHash = this.hashToken(rawToken);
-    user.passwordSetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
-    user.passwordSetTokenUsedAt = null;
+    user.inviteToken = this.hashToken(rawToken);
+    user.inviteExpires = new Date(Date.now() + ttl * 60 * 1000);
     await user.save({ transaction });
 
     const { password, ...userWithoutPassword } = user.toJSON();
     return { user: userWithoutPassword as User, rawToken };
+  }
+
+  /**
+   * Issue a new password-invite for an existing user (e.g. staff created outside UsersService).
+   */
+  async issuePasswordInviteCode(
+    userId: string,
+    transaction?: Transaction,
+    ttlMinutes?: number,
+  ): Promise<{ rawInviteCode: string }> {
+    const user = await this.userModel.findByPk(userId, { transaction });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    const ttl = this.getInviteTtlMinutes(ttlMinutes);
+    const rawInviteCode = this.generateRawToken();
+    user.inviteToken = this.hashToken(rawInviteCode);
+    user.inviteExpires = new Date(Date.now() + ttl * 60 * 1000);
+    await user.save({ transaction });
+    return { rawInviteCode };
   }
 
   /**
@@ -127,40 +156,50 @@ export class UsersService {
     return crypto.randomBytes(32).toString('base64url');
   }
 
-  async createSetPasswordToken(userId: string, ttlMinutes = 60): Promise<{ rawToken: string }> {
-    const user = await this.userModel.findByPk(userId);
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    const rawToken = this.generateRawToken();
-    user.passwordSetTokenHash = this.hashToken(rawToken);
-    user.passwordSetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
-    user.passwordSetTokenUsedAt = null;
-    await user.save();
-
-    return { rawToken };
+  async createSetPasswordToken(userId: string, ttlMinutes?: number): Promise<{ rawToken: string }> {
+    const { rawInviteCode } = await this.issuePasswordInviteCode(userId, undefined, ttlMinutes);
+    return { rawToken: rawInviteCode };
   }
 
-  async consumeSetPasswordToken(rawToken: string): Promise<User> {
-    if (!rawToken) {
-      throw new BadRequestException('token is required');
+  async verifyInviteCode(
+    rawInviteCode: string,
+  ): Promise<
+    | { valid: true }
+    | { valid: false; reason: 'expired' | 'invalid'; message: string }
+  > {
+    if (!rawInviteCode?.trim()) {
+      return { valid: false, reason: 'invalid', message: INVITE_INVALID_MESSAGE };
     }
-    const tokenHash = this.hashToken(rawToken);
-    const user = await this.userModel.findOne({ where: { passwordSetTokenHash: tokenHash } });
+    const tokenHash = this.hashToken(rawInviteCode);
+    const user = await this.userModel.findOne({ where: { inviteToken: tokenHash } });
     if (!user) {
-      throw new BadRequestException('Invalid or expired token');
+      return { valid: false, reason: 'invalid', message: INVITE_INVALID_MESSAGE };
     }
-    if (user.passwordSetTokenUsedAt) {
-      throw new BadRequestException('Token already used');
+    if (!user.inviteExpires || user.inviteExpires.getTime() < Date.now()) {
+      return { valid: false, reason: 'expired', message: INVITE_EXPIRED_MESSAGE };
     }
-    if (!user.passwordSetTokenExpiresAt || user.passwordSetTokenExpiresAt.getTime() < Date.now()) {
-      throw new BadRequestException('Invalid or expired token');
+    return { valid: true };
+  }
+
+  async setPasswordWithInviteCode(rawInviteCode: string, plainPassword: string): Promise<void> {
+    if (!rawInviteCode?.trim()) {
+      throw new BadRequestException(INVITE_INVALID_MESSAGE);
+    }
+    const tokenHash = this.hashToken(rawInviteCode);
+    const user = await this.userModel.findOne({ where: { inviteToken: tokenHash } });
+    if (!user) {
+      throw new BadRequestException(INVITE_INVALID_MESSAGE);
+    }
+    if (!user.inviteExpires || user.inviteExpires.getTime() < Date.now()) {
+      throw new BadRequestException(INVITE_EXPIRED_MESSAGE);
     }
 
-    user.passwordSetTokenUsedAt = new Date();
-    await user.save();
-    return user;
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    await user.update({
+      password: hashedPassword,
+      inviteToken: null,
+      inviteExpires: null,
+    });
   }
 
   /**
