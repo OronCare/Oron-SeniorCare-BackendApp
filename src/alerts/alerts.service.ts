@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { Alert, AlertStatus, AlertSeverity } from './alert.model';
+import { Facility } from '../facility/facility.model';
 import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
 import { ThresholdResult } from '../vitals/clinical-status.util';
@@ -44,11 +45,24 @@ interface BranchUtilizationAlertContext {
   createdAt?: Date;
 }
 
+interface NewResidentOwnerAlertContext {
+  facilityId: string;
+  branchId: string;
+  residentId: string;
+  residentName: string;
+  branchName: string;
+  facilityName: string;
+}
+
+const CONTRACT_EXPIRING_TITLE_PREFIX = 'Contract expiring soon';
+
 @Injectable()
 export class AlertsService {
   constructor(
     @InjectModel(Alert)
     private readonly alertModel: typeof Alert,
+    @InjectModel(Facility)
+    private readonly facilityModel: typeof Facility,
     private readonly oneSignalService: OneSignalService,
   ) {}
 
@@ -191,6 +205,93 @@ export class AlertsService {
     } else {
       schedulePush();
     }
+  }
+
+  async createFromNewResident(context: NewResidentOwnerAlertContext): Promise<void> {
+    const title = 'New resident added';
+    const message = `${context.residentName} was added to ${context.branchName} (${context.facilityName}).`;
+    const severity: AlertSeverity = 'Info';
+    await this.alertModel.create({
+      facilityId: context.facilityId,
+      branchId: context.branchId,
+      residentId: context.residentId,
+      title,
+      message,
+      severity,
+      status: 'Unread',
+      date: new Date(),
+      targetRoles: ['owner'],
+      healthState: null,
+      sourceVitalId: null,
+    });
+    void this.oneSignalService.notifyOwners([
+      {
+        title,
+        message,
+        severity,
+      },
+    ]);
+  }
+
+  async syncContractExpiryOwnerAlerts(): Promise<void> {
+    const startOfTodayUtc = new Date();
+    startOfTodayUtc.setUTCHours(0, 0, 0, 0);
+
+    const facilities = await this.facilityModel.findAll({
+      where: {
+        contractEnd: { [Op.gte]: startOfTodayUtc },
+      },
+    });
+
+    for (const facility of facilities) {
+      await this.createContractExpiringOwnerAlertIfNeededForToday(facility, startOfTodayUtc);
+    }
+  }
+
+  private async createContractExpiringOwnerAlertIfNeededForToday(
+    facility: Facility,
+    startOfTodayUtc: Date,
+  ): Promise<void> {
+    const existing = await this.alertModel.findOne({
+      where: {
+        facilityId: facility.id,
+        title: { [Op.like]: `${CONTRACT_EXPIRING_TITLE_PREFIX}%` },
+        createdAt: { [Op.gte]: startOfTodayUtc },
+      },
+    });
+    if (existing) {
+      return;
+    }
+
+    const todayUtc = new Date(startOfTodayUtc);
+    const endUtc = new Date(facility.contractEnd);
+    endUtc.setUTCHours(0, 0, 0, 0);
+    const msPerDay = 86_400_000;
+    const daysRemaining = Math.round((endUtc.getTime() - todayUtc.getTime()) / msPerDay);
+    if (daysRemaining < 0 || daysRemaining > 10) {
+      return;
+    }
+
+    const title = `${CONTRACT_EXPIRING_TITLE_PREFIX}: ${facility.name}`;
+    const endLabel = endUtc.toLocaleDateString('en-US');
+    const message = `The contract for ${facility.name} ends on ${endLabel}. ${daysRemaining} day(s) remaining.`;
+    const severity: AlertSeverity = daysRemaining <= 1 ? 'Critical' : 'Warning';
+
+    await this.alertModel.create({
+      facilityId: facility.id,
+      branchId: null,
+      residentId: null,
+      title,
+      message,
+      severity,
+      status: 'Unread',
+      date: new Date(),
+      targetRoles: ['owner'],
+      healthState: null,
+      sourceVitalId: null,
+    });
+
+    void this.oneSignalService.notifyOwners([{ title, message, severity }]);
   }
 
   async findAll(currentUser: User): Promise<Alert[]> {

@@ -120,6 +120,16 @@ export class ResidentsService {
     ]
       .filter(Boolean)
       .join(' ');
+
+    void this.alertsService.createFromNewResident({
+      facilityId: resident.facilityId,
+      branchId: resident.branchId,
+      residentId: resident.id,
+      residentName,
+      branchName: branch.name,
+      facilityName: facility.name,
+    });
+
     if (currentUser.role !== Role.OWNER) {
       await this.auditLogsService.create({
         facilityId: resident.facilityId,
