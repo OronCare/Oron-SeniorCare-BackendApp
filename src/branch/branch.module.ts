@@ -12,5 +12,6 @@ import { EmailService } from '../common/services/email.service';
   imports: [SequelizeModule.forFeature([Branch, Facility]), UsersModule, AuditLogsModule],
   controllers: [BranchController],
   providers: [BranchService, EmailService],
+  exports: [BranchService],
 })
 export class BranchModule {}

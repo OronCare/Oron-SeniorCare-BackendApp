@@ -22,6 +22,7 @@ import { RiskProfilesModule } from './risk-profiles/risk-profiles.module';
 import { GoalsModule } from './goals/goals.module';
 import { InterventionsModule } from './interventions/interventions.module';
 import { PreferencesModule } from './preferences/preferences.module';
+import { DashboardsModule } from './dashboards/dashboards.module';
 import { User } from './users/user.model';
 import { Facility } from './facility/facility.model';
 import { Branch } from './branch/branch.model';
@@ -75,6 +76,7 @@ import * as pg from 'pg';
     GoalsModule,
     InterventionsModule,
     PreferencesModule,
+    DashboardsModule,
   ],
   controllers: [AppController],
   providers: [

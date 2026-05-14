@@ -11,5 +11,6 @@ import { StorageModule } from '../storage/storage.module';
   imports: [SequelizeModule.forFeature([Facility]), UsersModule, StorageModule],
   controllers: [FacilityController],
   providers: [FacilityService, EmailService],
+  exports: [FacilityService],
 })
 export class FacilityModule {}

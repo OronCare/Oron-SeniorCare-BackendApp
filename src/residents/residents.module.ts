@@ -13,5 +13,6 @@ import { AlertsModule } from '../alerts/alerts.module';
   imports: [SequelizeModule.forFeature([Resident, Branch, Facility]), AuditLogsModule, StorageModule, AlertsModule],
   controllers: [ResidentsController],
   providers: [ResidentsService],
+  exports: [ResidentsService],
 })
 export class ResidentsModule {}
