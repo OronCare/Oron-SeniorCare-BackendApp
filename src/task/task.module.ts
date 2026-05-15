@@ -18,5 +18,6 @@ import { AlertsModule } from '../alerts/alerts.module';
   ],
   controllers: [TaskController],
   providers: [TaskService],
+  exports: [TaskService],
 })
 export class TaskModule {}
