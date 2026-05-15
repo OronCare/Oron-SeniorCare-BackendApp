@@ -5,6 +5,9 @@ import { ResidentsService } from '../../residents/residents.service';
 import { AlertsService } from '../../alerts/alerts.service';
 import { User } from '../../users/user.model';
 
+/** Fetch full owner-scoped lists for dashboard aggregates (not table page size). */
+const DASHBOARD_LIST_LIMIT = 10_000;
+
 @Injectable()
 export class OwnerDashboardService {
   constructor(
@@ -19,17 +22,25 @@ export class OwnerDashboardService {
    * Facility / branch / staff dashboards can follow the same pattern under `dashboards/`.
    */
   async getSnapshot(currentUser: User) {
-    const [facilities, branches, residents, alerts] = await Promise.all([
-      this.facilityService.findAll(),
-      this.branchService.findAll(currentUser),
-      this.residentsService.findAll(currentUser),
-      this.alertsService.findAll(currentUser),
-    ]);
+    const listQuery = { page: 1, limit: DASHBOARD_LIST_LIMIT };
+
+    const [facilitiesResult, branchesResult, residentsResult, alerts] =
+      await Promise.all([
+        this.facilityService.findAll(listQuery),
+        this.branchService.findAll(currentUser, listQuery),
+        this.residentsService.findAll(currentUser, listQuery),
+        this.alertsService.findAll(currentUser),
+      ]);
 
     return {
-      facilities,
-      branches,
-      residents,
+      facilities: facilitiesResult.data,
+      branches: branchesResult.data,
+      residents: residentsResult.data,
+      totals: {
+        facilities: facilitiesResult.total,
+        branches: branchesResult.total,
+        residents: residentsResult.total,
+      },
       alerts,
     };
   }
