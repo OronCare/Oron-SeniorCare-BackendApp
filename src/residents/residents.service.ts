@@ -16,6 +16,8 @@ import { STORAGE_SERVICE } from '../storage/storage.service';
 import type { StorageService } from '../storage/storage.service';
 import { getUploadsSignedUrlExpirySeconds } from '../common/config/uploads.config';
 import { AlertsService } from '../alerts/alerts.service';
+import { GetResidentsQueryDto } from './dto/get-residents-query.dto';
+import { PaginatedResidentsResult } from './dto/paginated-residents.dto';
 
 @Injectable()
 export class ResidentsService {
@@ -144,10 +146,68 @@ export class ResidentsService {
     return this.buildResidentResponse(resident);
   }
 
-  async findAll(currentUser: User): Promise<any[]> {
-    const whereClause = this.buildWhereClause(currentUser);
-    const residents = await this.residentModel.findAll({ where: whereClause });
-    return Promise.all(residents.map(resident => this.buildResidentResponse(resident)));
+  async findAll(
+    currentUser: User,
+    query: GetResidentsQueryDto = {},
+  ): Promise<PaginatedResidentsResult> {
+    const whereClause = { ...this.buildWhereClause(currentUser) };
+
+    const branchId = query.branchId?.trim();
+    if (branchId && branchId !== 'All') {
+      whereClause.branchId = branchId;
+    }
+
+    const residents = await this.residentModel.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+    });
+
+    const allResidents = await Promise.all(
+      residents.map((resident) => this.buildResidentResponse(resident)),
+    );
+
+    const filtered = this.applyResidentFilters(allResidents, query);
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const total = filtered.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const data = filtered.slice(offset, offset + limit);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  private applyResidentFilters(
+    residents: Record<string, unknown>[],
+    query: GetResidentsQueryDto,
+  ): Record<string, unknown>[] {
+    const search = query.search?.trim().toLowerCase();
+    const status = query.status?.trim();
+
+    return residents.filter((resident) => {
+      if (status && status !== 'All' && resident.status !== status) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      const firstName = String(resident.firstName ?? '').toLowerCase();
+      const middleName = String(resident.middleName ?? '').toLowerCase();
+      const lastName = String(resident.lastName ?? '').toLowerCase();
+      const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+      const room = String(resident.room ?? '').toLowerCase();
+
+      return fullName.includes(search) || room.includes(search);
+    });
   }
 
   async findOne(id: string, currentUser: User): Promise<any> {

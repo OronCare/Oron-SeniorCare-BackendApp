@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
-import { Transaction } from 'sequelize';
+import { Op, Transaction, WhereOptions } from 'sequelize';
 import { Branch } from './branch.model';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { User } from '../users/user.model';
@@ -15,6 +15,8 @@ import { UsersService } from '../users/users.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { EmailService } from '../common/services/email.service';
 import * as crypto from 'crypto';
+import { GetBranchesQueryDto } from './dto/get-branches-query.dto';
+import { PaginatedBranchesResult } from './dto/paginated-branches.dto';
 
 @Injectable()
 export class BranchService {
@@ -111,21 +113,82 @@ export class BranchService {
     return branch;
   }
 
-  async findAll(currentUser: User): Promise<Branch[]> {
+  private buildScopeWhere(currentUser: User): WhereOptions<Branch> | null {
     if (currentUser.role === Role.OWNER) {
-      return this.branchModel.findAll();
+      return {};
     }
 
     if (currentUser.role === Role.FACILITY_ADMIN) {
       if (!currentUser.facilityId) {
-        return [];
+        return null;
       }
-      return this.branchModel.findAll({
-        where: { facilityId: currentUser.facilityId },
+      return { facilityId: currentUser.facilityId };
+    }
+
+    return null;
+  }
+
+  private buildFilterWhere(
+    scopeWhere: WhereOptions<Branch>,
+    query: GetBranchesQueryDto,
+  ): WhereOptions<Branch> {
+    const conditions: WhereOptions<Branch>[] = [scopeWhere];
+
+    const search = query.search?.trim();
+    if (search) {
+      conditions.push({
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { branchAdminName: { [Op.iLike]: `%${search}%` } },
+        ],
       });
     }
 
-    throw new ForbiddenException('Only owner or facility admin can view branches');
+    const status = query.status?.trim();
+    if (status && status !== 'All') {
+      conditions.push({ status });
+    }
+
+    return conditions.length === 1 ? conditions[0] : { [Op.and]: conditions };
+  }
+
+  async findAll(
+    currentUser: User,
+    query: GetBranchesQueryDto = {},
+  ): Promise<PaginatedBranchesResult> {
+    const scopeWhere = this.buildScopeWhere(currentUser);
+    if (!scopeWhere) {
+      return {
+        data: [],
+        total: 0,
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+        totalPages: 0,
+      };
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = this.buildFilterWhere(scopeWhere, query);
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.branchModel.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const total = count;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data: rows,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async findOne(id: string, currentUser: User): Promise<Branch | null> {

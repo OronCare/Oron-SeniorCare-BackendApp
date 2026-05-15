@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
-import { Transaction } from 'sequelize';
+import { Op, Transaction, WhereOptions } from 'sequelize';
 import { Facility } from './facility.model';
 import { CreateFacilityDto } from './dto/create-facility.dto';
 import { UpdateFacilityDto } from './dto/update-facility.dto';
@@ -15,6 +15,8 @@ import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
 import { EmailService } from '../common/services/email.service';
 import { CreateFacilityResponse } from './interfaces/create-facility.response';
+import { GetFacilitiesQueryDto } from './dto/get-facilities-query.dto';
+import { PaginatedFacilitiesResult } from './dto/paginated-facilities.dto';
 import { STORAGE_SERVICE } from '../storage/storage.service';
 import type { StorageService } from '../storage/storage.service';
 import { getUploadsSignedUrlExpirySeconds } from '../common/config/uploads.config';
@@ -113,9 +115,55 @@ export class FacilityService {
     });
   }
 
-  async findAll(): Promise<any[]> {
-    const facilities = await this.facilityModel.findAll();
-    return Promise.all(facilities.map(facility => this.decorateFacility(facility)));
+  private buildFilterWhere(query: GetFacilitiesQueryDto): WhereOptions<Facility> {
+    const conditions: WhereOptions<Facility>[] = [];
+
+    const search = query.search?.trim();
+    if (search) {
+      conditions.push({
+        [Op.or]: [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { facilityAdminName: { [Op.iLike]: `%${search}%` } },
+        ],
+      });
+    }
+
+    const status = query.status?.trim();
+    if (status && status !== 'All') {
+      conditions.push({ status });
+    }
+
+    if (conditions.length === 0) {
+      return {};
+    }
+
+    return conditions.length === 1 ? conditions[0] : { [Op.and]: conditions };
+  }
+
+  async findAll(query: GetFacilitiesQueryDto = {}): Promise<PaginatedFacilitiesResult> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = this.buildFilterWhere(query);
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.facilityModel.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const data = await Promise.all(rows.map((facility) => this.decorateFacility(facility)));
+    const total = count;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async findOne(id: string, currentUser: User): Promise<any | null> {

@@ -6,10 +6,12 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { GetStaffQueryDto } from './dto/get-staff-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -61,10 +63,14 @@ export class StaffController {
 
   @Get()
   @Roles(Role.OWNER, Role.FACILITY_ADMIN, Role.BRANCH_ADMIN, Role.STAFF)
-  @ApiOperation({ summary: 'Get all staff in your scope' })
+  @ApiOperation({ summary: 'Get paginated staff in your scope' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'branchId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Staff list retrieved successfully' })
-  findAll(@CurrentUser() currentUser: User) {
-    return this.staffService.findAll(currentUser);
+  findAll(@CurrentUser() currentUser: User, @Query() query: GetStaffQueryDto) {
+    return this.staffService.findAll(currentUser, query);
   }
 
   @Get(':id')

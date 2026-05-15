@@ -4,9 +4,11 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { BranchService } from './branch.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,7 +18,10 @@ import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.model';
 import type { Request } from 'express';
+import { GetBranchesQueryDto } from './dto/get-branches-query.dto';
 
+@ApiTags('Branches')
+@ApiBearerAuth()
 @Controller('branches')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BranchController {
@@ -49,8 +54,16 @@ export class BranchController {
 
   @Get()
   @Roles(Role.OWNER, Role.FACILITY_ADMIN)
-  async findAll(@CurrentUser() currentUser: User) {
-    return this.branchService.findAll(currentUser);
+  @ApiOperation({ summary: 'Get paginated branches in your scope' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  async findAll(
+    @CurrentUser() currentUser: User,
+    @Query() query: GetBranchesQueryDto,
+  ) {
+    return this.branchService.findAll(currentUser, query);
   }
 
   @Get(':id')

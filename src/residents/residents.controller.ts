@@ -7,6 +7,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Req,
   UploadedFile,
@@ -21,7 +22,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.model';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { GetResidentsQueryDto } from './dto/get-residents-query.dto';
 import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { createMemoryMulterOptions } from '../common/utils/multer.util';
@@ -98,10 +100,18 @@ export class ResidentsController {
 
   @Get()
   @Roles(Role.OWNER, Role.FACILITY_ADMIN, Role.BRANCH_ADMIN, Role.STAFF)
-  @ApiOperation({ summary: 'Get all residents in scope' })
+  @ApiOperation({ summary: 'Get paginated residents in scope' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'branchId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Residents retrieved successfully' })
-  async findAll(@CurrentUser() currentUser: User) {
-    return this.residentsService.findAll(currentUser);
+  async findAll(
+    @CurrentUser() currentUser: User,
+    @Query() query: GetResidentsQueryDto,
+  ) {
+    return this.residentsService.findAll(currentUser, query);
   }
 
   @Get(':id')

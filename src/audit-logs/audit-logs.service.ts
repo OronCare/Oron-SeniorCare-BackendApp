@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op, WhereOptions } from 'sequelize';
 import { AuditLog } from './audit-log.model';
 import { User } from '../users/user.model';
 import { Role } from '../common/enums/role.enum';
+import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
+import { PaginatedAuditLogsResult } from './dto/paginated-audit-logs.dto';
 
 type CreateAuditLogInput = {
   facilityId?: string | null;
@@ -33,28 +36,94 @@ export class AuditLogsService {
     });
   }
 
-  async findAll(currentUser: User): Promise<AuditLog[]> {
+  private buildScopeWhere(currentUser: User): WhereOptions<AuditLog> | null {
     if (currentUser.role === Role.OWNER) {
-      return this.auditLogModel.findAll({ order: [['timestamp', 'DESC']] });
+      return {};
     }
 
     if (currentUser.role === Role.FACILITY_ADMIN && currentUser.facilityId) {
-      return this.auditLogModel.findAll({
-        where: { facilityId: currentUser.facilityId },
-        order: [['timestamp', 'DESC']],
-      });
+      return { facilityId: currentUser.facilityId };
     }
 
     if (
       (currentUser.role === Role.BRANCH_ADMIN || currentUser.role === Role.STAFF) &&
       currentUser.branchId
     ) {
-      return this.auditLogModel.findAll({
-        where: { branchId: currentUser.branchId },
-        order: [['timestamp', 'DESC']],
+      return { branchId: currentUser.branchId };
+    }
+
+    return null;
+  }
+
+  private buildFilterWhere(
+    scopeWhere: WhereOptions<AuditLog>,
+    query: GetAuditLogsQueryDto,
+  ): WhereOptions<AuditLog> {
+    const conditions: WhereOptions<AuditLog>[] = [scopeWhere];
+
+    const search = query.search?.trim();
+    if (search) {
+      conditions.push({
+        [Op.or]: [
+          { user: { [Op.iLike]: `%${search}%` } },
+          { details: { [Op.iLike]: `%${search}%` } },
+        ],
       });
     }
 
-    return [];
+    const action = query.action?.trim();
+    if (action && action !== 'All') {
+      conditions.push({ action });
+    }
+
+    return conditions.length === 1 ? conditions[0] : { [Op.and]: conditions };
+  }
+
+  async findAll(
+    currentUser: User,
+    query: GetAuditLogsQueryDto = {},
+  ): Promise<PaginatedAuditLogsResult> {
+    const scopeWhere = this.buildScopeWhere(currentUser);
+    if (!scopeWhere) {
+      return {
+        data: [],
+        total: 0,
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+        totalPages: 0,
+        actions: [],
+      };
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = this.buildFilterWhere(scopeWhere, query);
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.auditLogModel.findAndCountAll({
+      where,
+      order: [['timestamp', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const actionRows = await this.auditLogModel.findAll({
+      attributes: ['action'],
+      where: scopeWhere,
+      group: ['action'],
+      order: [['action', 'ASC']],
+    });
+
+    const total = count;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data: rows,
+      total,
+      page,
+      limit,
+      totalPages,
+      actions: actionRows.map((row) => row.action),
+    };
   }
 }

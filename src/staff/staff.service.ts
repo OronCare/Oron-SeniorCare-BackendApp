@@ -10,6 +10,9 @@ import { EmailService } from '../common/services/email.service';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { Op, WhereOptions } from 'sequelize';
+import { GetStaffQueryDto } from './dto/get-staff-query.dto';
+import { PaginatedStaffResult } from './dto/paginated-staff.dto';
 
 
 @Injectable()
@@ -154,35 +157,91 @@ export class StaffService {
     return this.mapStaffUser(createdStaff);
   }
 
-  async findAll(currentUser: User): Promise<any[]> {
+  private buildScopeWhere(currentUser: User): WhereOptions<User> | null {
+    const baseWhere: WhereOptions<User> = { role: Role.STAFF };
+
     switch (currentUser.role) {
       case Role.OWNER:
-        return (await this.userModel.findAll({
-          where: { role: Role.STAFF },
-          order: [['createdAt', 'DESC']],
-        })).map((user) => this.mapStaffUser(user));
-      case Role.FACILITY_ADMIN: {
+        return baseWhere;
+      case Role.FACILITY_ADMIN:
         if (!currentUser.facilityId) {
-          return [];
+          return null;
         }
-        return (await this.userModel.findAll({
-          where: { role: Role.STAFF, facilityId: currentUser.facilityId },
-          order: [['createdAt', 'DESC']],
-        })).map((user) => this.mapStaffUser(user));
-      }
+        return { ...baseWhere, facilityId: currentUser.facilityId };
       case Role.BRANCH_ADMIN:
-      case Role.STAFF: {
+      case Role.STAFF:
         if (!currentUser.branchId) {
-          return [];
+          return null;
         }
-        return (await this.userModel.findAll({
-          where: { role: Role.STAFF, branchId: currentUser.branchId },
-          order: [['createdAt', 'DESC']],
-        })).map((user) => this.mapStaffUser(user));
-      }
+        return { ...baseWhere, branchId: currentUser.branchId };
       default:
-        return [];
+        return null;
     }
+  }
+
+  private buildFilterWhere(
+    scopeWhere: WhereOptions<User>,
+    query: GetStaffQueryDto,
+  ): WhereOptions<User> {
+    const conditions: WhereOptions<User>[] = [scopeWhere];
+
+    const search = query.search?.trim();
+    if (search) {
+      conditions.push({
+        [Op.or]: [
+          { firstName: { [Op.iLike]: `%${search}%` } },
+          { lastName: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
+          { staffRole: { [Op.iLike]: `%${search}%` } },
+        ],
+      });
+    }
+
+    const branchId = query.branchId?.trim();
+    if (branchId && branchId !== 'All') {
+      conditions.push({ branchId });
+    }
+
+    return conditions.length === 1 ? conditions[0] : { [Op.and]: conditions };
+  }
+
+  async findAll(
+    currentUser: User,
+    query: GetStaffQueryDto = {},
+  ): Promise<PaginatedStaffResult> {
+    const scopeWhere = this.buildScopeWhere(currentUser);
+    if (!scopeWhere) {
+      return {
+        data: [],
+        total: 0,
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+        totalPages: 0,
+      };
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const where = this.buildFilterWhere(scopeWhere, query);
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.userModel.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const total = count;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+
+    return {
+      data: rows.map((user) => this.mapStaffUser(user)),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async findOne(id: string, currentUser: User): Promise<any | null> {
